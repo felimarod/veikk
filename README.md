@@ -8,6 +8,12 @@ monitor it drives, how pressure feels, and what the pad buttons send.
 Built and tested against the VK640 (USB `2feb:0005`). Other Veikk pads use the
 same standard HID reports and may work, but have not been tried.
 
+> **Unofficial project.** veikk is an independent, community-made tool. It is not
+> made, endorsed or supported by Veikk (VEIKK / Shenzhen Veikk), and "Veikk" and
+> "VK640" are used only to say which hardware it works with. It comes with no
+> warranty (see `LICENSE`): the service grabs the tablet's input devices while it
+> runs, so use it at your own risk.
+
 ## Why it exists
 
 Hyprland does not register the VK640's pen as a tablet, only its mouse and
