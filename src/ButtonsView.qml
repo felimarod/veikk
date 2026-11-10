@@ -27,8 +27,8 @@ Item {
         Label {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            color: "#9a9aa0"
-            text: qsTr("Press Learn, then press a button on the pad. Type what it should send, such as ctrl+z or f5, or none to make it do nothing.")
+            color: Palette.textMuted
+            text: qsTr("Press Learn, then press a button on the pad. Type what it should send, such as ctrl+z or f5, or none to make it do nothing. While the service runs, the button also acts on the desktop as it does today.")
         }
 
         RowLayout {
@@ -69,13 +69,13 @@ Item {
             id: errorLabel
             Layout.fillWidth: true
             visible: text !== ""
-            color: "#ff9a8a"
+            color: Palette.error
             wrapMode: Text.WordWrap
         }
 
         Label {
             text: qsTr("Last pad button: %1").arg(backend.lastChord !== "" ? backend.lastChord : "–")
-            color: "#6a6a70"
+            color: Palette.textDim
         }
 
         ListView {
@@ -88,7 +88,7 @@ Item {
             Label {
                 anchors.centerIn: parent
                 visible: parent.count === 0
-                color: "#6a6a70"
+                color: Palette.textDim
                 text: qsTr("No buttons remapped.")
             }
 
@@ -96,7 +96,7 @@ Item {
                 width: ListView.view.width
                 height: 48
                 radius: theme.radius
-                color: "#17171a"
+                color: Palette.surface
 
                 RowLayout {
                     anchors.fill: parent
@@ -104,12 +104,12 @@ Item {
                     anchors.rightMargin: 8
                     spacing: 12
                     Label { text: modelData.from; font.family: "monospace" }
-                    Label { text: "→"; color: "#6a6a70" }
+                    Label { text: "→"; color: Palette.textDim }
                     Label {
                         Layout.fillWidth: true
                         text: modelData.to === "none" ? qsTr("does nothing") : modelData.to
                         font.family: modelData.to === "none" ? "" : "monospace"
-                        color: modelData.to === "none" ? "#9a9aa0" : Material.foreground
+                        color: modelData.to === "none" ? Palette.textMuted : Material.foreground
                     }
                     Button {
                         text: qsTr("Remove")

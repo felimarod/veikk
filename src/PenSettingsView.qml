@@ -18,7 +18,7 @@ Item {
                 width: Math.min(parent.width, parent.height)
                 height: width
                 anchors.centerIn: parent
-                color: "#17171a"
+                color: Palette.surface
                 radius: theme.radius
 
                 Canvas {
@@ -31,14 +31,14 @@ Item {
                     onPaint: {
                         var ctx = getContext("2d")
                         ctx.clearRect(0, 0, width, height)
-                        ctx.strokeStyle = "#2a2a2f"
+                        ctx.strokeStyle = Palette.border
                         ctx.lineWidth = 1
                         for (var g = 0; g <= 4; ++g) {
                             ctx.beginPath(); ctx.moveTo(toX(g / 4), 0); ctx.lineTo(toX(g / 4), height); ctx.stroke()
                             ctx.beginPath(); ctx.moveTo(0, toY(g / 4)); ctx.lineTo(width, toY(g / 4)); ctx.stroke()
                         }
                         // Handle stems.
-                        ctx.strokeStyle = "#55555c"
+                        ctx.strokeStyle = Palette.disabled
                         ctx.beginPath(); ctx.moveTo(toX(0), toY(0)); ctx.lineTo(toX(backend.curveX1), toY(backend.curveY1)); ctx.stroke()
                         ctx.beginPath(); ctx.moveTo(toX(1), toY(1)); ctx.lineTo(toX(backend.curveX2), toY(backend.curveY2)); ctx.stroke()
                         // The curve itself, sampled through the same function the daemon uses.
@@ -74,7 +74,32 @@ Item {
                             y: curveCanvas.toY(cy) - 9
                             color: theme.accent
                             border.width: 2
-                            border.color: "#0e0e10"
+                            border.color: Palette.background
+
+                            // Keyboard: arrows nudge the handle.
+                            activeFocusOnTab: true
+                            Accessible.role: Accessible.Slider
+                            Accessible.name: index === 0 ? qsTr("Curve handle 1") : qsTr("Curve handle 2")
+                            Keys.onPressed: (e) => {
+                                var dx = e.key === Qt.Key_Left ? -1 : e.key === Qt.Key_Right ? 1 : 0
+                                var dy = e.key === Qt.Key_Down ? -1 : e.key === Qt.Key_Up ? 1 : 0
+                                if (dx === 0 && dy === 0) return
+                                var nx = Math.max(0, Math.min(1, cx + dx * 0.02))
+                                var ny = Math.max(0, Math.min(1, cy + dy * 0.02))
+                                if (index === 0) backend.setCurve(nx, ny, backend.curveX2, backend.curveY2)
+                                else backend.setCurve(backend.curveX1, backend.curveY1, nx, ny)
+                                e.accepted = true
+                            }
+                            Rectangle {
+                                visible: parent.activeFocus
+                                anchors.centerIn: parent
+                                width: parent.width + 8
+                                height: width
+                                radius: width / 2
+                                color: "transparent"
+                                border.width: 2
+                                border.color: Material.foreground
+                            }
 
                             MouseArea {
                                 anchors.fill: parent
@@ -109,7 +134,7 @@ Item {
                     anchors.bottom: parent.bottom
                     anchors.margins: 6
                     text: qsTr("Pressure in")
-                    color: "#6a6a70"
+                    color: Palette.textDim
                     font.pixelSize: 11
                 }
                 Label {
@@ -117,7 +142,7 @@ Item {
                     anchors.top: parent.top
                     anchors.margins: 6
                     text: qsTr("Pressure out")
-                    color: "#6a6a70"
+                    color: Palette.textDim
                     font.pixelSize: 11
                 }
             }
@@ -133,12 +158,12 @@ Item {
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#9a9aa0"
+                color: Palette.textMuted
                 text: qsTr("Drag the two handles. Pull the curve down for a softer pen that needs a firmer press; up for a lighter touch.")
             }
             Button { text: qsTr("Straight line"); flat: true; onClicked: backend.resetCurve() }
 
-            Label { text: qsTr("Barrel button"); color: "#9a9aa0" }
+            Label { text: qsTr("Barrel button"); color: Palette.textMuted }
             ComboBox {
                 Layout.fillWidth: true
                 textRole: "label"

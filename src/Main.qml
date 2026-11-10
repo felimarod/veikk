@@ -11,7 +11,7 @@ ApplicationWindow {
     minimumHeight: 520
     visible: true
     title: "Veikk"
-    color: "#0e0e10"
+    color: Palette.background
 
     Material.theme: Material.Dark
     Material.accent: theme.accent
@@ -59,7 +59,7 @@ ApplicationWindow {
                 Label {
                     Layout.fillWidth: true
                     elide: Text.ElideRight
-                    color: backend.penFound ? Material.foreground : "#ff9a8a"
+                    color: backend.penFound ? Material.foreground : Palette.error
                     text: backend.penFound
                         ? (backend.daemonRunning ? qsTr("%1, shaped by the service").arg(backend.deviceName)
                                                  : qsTr("%1, raw (service stopped)").arg(backend.deviceName))
@@ -78,7 +78,7 @@ ApplicationWindow {
                 visible: msg.text !== ""
                 implicitHeight: msg.implicitHeight + 20
                 radius: theme.radius
-                color: "#3a1d1d"
+                color: Palette.errorSurface
                 Label {
                     id: msg
                     anchors.fill: parent
@@ -118,7 +118,7 @@ ApplicationWindow {
         Rectangle {
             anchors.fill: parent
             visible: win.helpVisible
-            color: "#d0000000"
+            color: Palette.scrim
             MouseArea { anchors.fill: parent; onClicked: win.helpVisible = false }
 
             Rectangle {
@@ -126,7 +126,7 @@ ApplicationWindow {
                 width: Math.min(parent.width - 40, 460)
                 height: helpColumn.implicitHeight + 40
                 radius: theme.radius
-                color: "#17171a"
+                color: Palette.surface
 
                 ColumnLayout {
                     id: helpColumn
