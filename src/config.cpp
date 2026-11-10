@@ -1,0 +1,98 @@
+#include "config.h"
+
+#include <QDir>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QSaveFile>
+#include <QStandardPaths>
+#include <algorithm>
+
+#include "keynames.h"
+
+bool Config::operator==(const Config &o) const {
+    return monitor == o.monitor && rotation == o.rotation && area == o.area
+        && keepProportions == o.keepProportions && tabletAspect == o.tabletAspect && curve == o.curve
+        && barrel == o.barrel && buttons == o.buttons;
+}
+
+QJsonObject Config::toJson() const {
+    QJsonArray rules;
+    for (const auto &rule : buttons)
+        rules.append(QJsonObject{{"from", KeyNames::chord(rule.from)}, {"to", KeyNames::chord(rule.to)}});
+    return {
+        {"monitor", monitor},
+        {"rotation", rotation},
+        {"area", QJsonObject{{"x", area.x}, {"y", area.y}, {"w", area.w}, {"h", area.h}}},
+        {"keepProportions", keepProportions},
+        {"tabletAspect", tabletAspect},
+        {"curve", QJsonObject{{"x1", curve.x1}, {"y1", curve.y1}, {"x2", curve.x2}, {"y2", curve.y2}}},
+        {"barrel", barrel},
+        {"buttons", rules},
+    };
+}
+
+Config Config::fromJson(const QJsonObject &o) {
+    Config c;
+    auto unit = [](const QJsonObject &obj, const char *key, double fallback) {
+        return std::clamp(obj.value(key).toDouble(fallback), 0.0, 1.0);
+    };
+    c.monitor = o.value("monitor").toString();
+    const int rotation = o.value("rotation").toInt(0);
+    c.rotation = (rotation == 90 || rotation == 180 || rotation == 270) ? rotation : 0;
+
+    const auto area = o.value("area").toObject();
+    c.area.w = std::max(0.02, unit(area, "w", 1));
+    c.area.h = std::max(0.02, unit(area, "h", 1));
+    c.area.x = std::min(unit(area, "x", 0), 1 - c.area.w);
+    c.area.y = std::min(unit(area, "y", 0), 1 - c.area.h);
+
+    c.keepProportions = o.value("keepProportions").toBool(true);
+    const double aspect = o.value("tabletAspect").toDouble(1.5);
+    c.tabletAspect = aspect >= 0.2 && aspect <= 5 ? aspect : 1.5;
+
+    const auto curve = o.value("curve").toObject();
+    c.curve = {unit(curve, "x1", .25), unit(curve, "y1", .25), unit(curve, "x2", .75), unit(curve, "y2", .75)};
+
+    const QString barrel = o.value("barrel").toString("stylus");
+    c.barrel = (barrel == "stylus2" || barrel == "none") ? barrel : "stylus";
+
+    for (const auto &value : o.value("buttons").toArray()) {
+        const auto rule = value.toObject();
+        bool fromOk = false, toOk = false;
+        const auto from = KeyNames::parseChord(rule.value("from").toString(), &fromOk);
+        const auto to = KeyNames::parseChord(rule.value("to").toString(), &toOk);
+        // A rule that matches no button would swallow nothing and mean nothing.
+        if (fromOk && toOk && !from.isEmpty())
+            c.buttons.append({from, to});
+    }
+    return c;
+}
+
+QString Config::defaultPath() {
+    return QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + "/veikk/config.json";
+}
+
+Config Config::load(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return {};
+    return fromJson(QJsonDocument::fromJson(file.readAll()).object());
+}
+
+bool Config::save(const Config &config, const QString &path, QString *error) {
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        if (error)
+            *error = file.errorString();
+        return false;
+    }
+    file.write(QJsonDocument(config.toJson()).toJson(QJsonDocument::Indented));
+    if (!file.commit()) {
+        if (error)
+            *error = file.errorString();
+        return false;
+    }
+    return true;
+}
