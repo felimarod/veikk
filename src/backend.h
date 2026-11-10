@@ -3,7 +3,6 @@
 #include <QElapsedTimer>
 #include <QFileSystemWatcher>
 #include <QObject>
-#include <QProcess>
 #include <QSocketNotifier>
 #include <QTimer>
 #include <QVariantList>
@@ -11,6 +10,8 @@
 #include <set>
 
 #include "config.h"
+#include "layoutwatcher.h"
+#include "servicecontroller.h"
 #include "tabletmath.h"
 
 // What the window shows and changes: the settings the daemon applies, and a
@@ -27,6 +28,13 @@ class Backend : public QObject {
     Q_PROPERTY(QStringList monitors READ monitors NOTIFY layoutChanged)
     Q_PROPERTY(double monitorAspect READ monitorAspect NOTIFY layoutChanged)
     Q_PROPERTY(int rotation READ rotation NOTIFY configChanged)
+    Q_PROPERTY(bool realSize READ realSize NOTIFY configChanged)
+    // Real size is on and both physical sizes are known, so the area is computed.
+    Q_PROPERTY(bool realActive READ realActive NOTIFY configChanged)
+    Q_PROPERTY(double tabletWidthMm READ tabletWidthMm NOTIFY configChanged)
+    Q_PROPERTY(double tabletHeightMm READ tabletHeightMm NOTIFY configChanged)
+    Q_PROPERTY(double monitorWidthMm READ monitorWidthMm NOTIFY configChanged)
+    Q_PROPERTY(double monitorHeightMm READ monitorHeightMm NOTIFY configChanged)
     Q_PROPERTY(double areaX READ areaX NOTIFY configChanged)
     Q_PROPERTY(double areaY READ areaY NOTIFY configChanged)
     Q_PROPERTY(double areaW READ areaW NOTIFY configChanged)
@@ -65,12 +73,18 @@ public:
 
     QString monitor() const { return m_config.monitor; }
     QStringList monitors() const;
-    double monitorAspect() const { return m_layout.aspect(m_config.monitor); }
+    double monitorAspect() const { return layout().aspect(displayMonitor()); }
+    bool realSize() const { return m_config.realSize; }
+    bool realActive() const { return real().valid; }
+    double tabletWidthMm() const { return m_config.tabletWidthMm; }
+    double tabletHeightMm() const { return m_config.tabletWidthMm / m_config.tabletAspect; }
+    double monitorWidthMm() const { return layout().effective(m_config.monitor).mmW; }
+    double monitorHeightMm() const { return layout().effective(m_config.monitor).mmH; }
     int rotation() const { return m_config.rotation; }
-    double areaX() const { return m_config.area.x; }
-    double areaY() const { return m_config.area.y; }
-    double areaW() const { return m_config.area.w; }
-    double areaH() const { return m_config.area.h; }
+    double areaX() const { return effectiveArea().x; }
+    double areaY() const { return effectiveArea().y; }
+    double areaW() const { return effectiveArea().w; }
+    double areaH() const { return effectiveArea().h; }
     bool keepProportions() const { return m_config.keepProportions; }
     double tabletAspect() const { return m_config.tabletAspect; }
     double curveX1() const { return m_config.curve.x1; }
@@ -97,6 +111,8 @@ public:
     Q_INVOKABLE void setRotation(int degrees);
     Q_INVOKABLE void setArea(double x, double y, double w, double h);
     Q_INVOKABLE void resetArea();
+    Q_INVOKABLE void setRealSize(bool on);
+    Q_INVOKABLE void setTabletWidthMm(double mm);
     Q_INVOKABLE void setKeepProportions(bool keep);
     Q_INVOKABLE void setTabletAspect(double aspect);
     Q_INVOKABLE void setCurve(double x1, double y1, double x2, double y2);
@@ -123,30 +139,35 @@ signals:
 private:
     void commit(Config next, const char *kind);
     void fitArea(Config &config) const;
+    TabletMath::RealSize real() const;
+    TabletMath::Area effectiveArea() const;
+    // The monitor the pad drives: the chosen one, or in real size the first.
+    QString displayMonitor() const;
     void applyHistory(Config config);
     void save();
-    void refreshLayout();
+    const TabletMath::Layout &layout() const { return m_layoutWatcher->layout(); }
     void refreshDevices();
     void readState();
+    void watchStateFile();
     void readPen();
     void readKeypad();
     void closeSources();
     void updateProblem();
 
-    QString m_configPath, m_stateDirectory, m_hyprctl;
+    QString m_configPath, m_stateDirectory;
     Config m_config;
     QList<Config> m_undo, m_redo;
     QString m_lastKind;
     QElapsedTimer m_lastEdit;
     QString m_saveError;
     QTimer m_saveTimer, m_pollTimer;
-    TabletMath::Layout m_layout;
-    QProcess m_layoutProcess;
-    QProcess m_serviceProcess;
+    std::unique_ptr<LayoutWatcher> m_layoutWatcher;
+    ServiceController m_service;
+    QFileSystemWatcher m_deviceWatcher;
 
     int m_penFd = -1, m_keypadFd = -1;
     std::unique_ptr<QSocketNotifier> m_penNotifier, m_keypadNotifier;
-    QString m_penPath, m_keypadPath, m_deviceName, m_problem;
+    QString m_failedPenPath, m_penPath, m_keypadPath, m_deviceName, m_problem;
     // Three sources, shown in this order: what systemctl said, what the
     // daemon reported, and why the window itself could not open the pen.
     QString m_serviceProblem, m_daemonProblem, m_openProblem;

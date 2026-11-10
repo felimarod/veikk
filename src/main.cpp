@@ -4,7 +4,7 @@
 //   veikk daemon     run the background service the window configures
 //   veikk status     say whether the tablet and the service are running
 
-#include <signal.h>
+#include <unistd.h>
 
 #include <QCoreApplication>
 #include <QDir>
@@ -17,41 +17,29 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
-#include <QTimer>
 #include <QUrl>
 #include <cerrno>
 #include <cstdio>
 
 #include "backend.h"
 #include "config.h"
-#include "engine.h"
 #include "evdev.h"
 #include "theme.h"
+#include "state.h"
 #include "translator.h"
 
-static QString stateDirectory() {
-    const QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR");
-    return (runtime.isEmpty() ? QDir::tempPath() : runtime) + "/veikk";
-}
+#ifndef VEIKK_VERSION
+#define VEIKK_VERSION "0.0.0"
+#endif
 
-static volatile sig_atomic_t g_stop = 0;
-
-static int runDaemon(int argc, char *argv[]) {
-    QCoreApplication app(argc, argv);
-    QCoreApplication::setApplicationName("veikk");
-
-    struct sigaction action{};
-    action.sa_handler = [](int) { g_stop = 1; };
-    sigaction(SIGTERM, &action, nullptr);
-    sigaction(SIGINT, &action, nullptr);
-    // A signal handler may only set a flag, so a timer turns it into a clean
-    // quit that destroys the virtual devices and removes the state file.
-    QTimer stop;
-    QObject::connect(&stop, &QTimer::timeout, &app, [] { if (g_stop) QCoreApplication::quit(); });
-    stop.start(200);
-
-    Engine engine(Config::defaultPath(), stateDirectory());
-    return app.exec();
+// `veikk daemon` is kept for old habits and unit files: it becomes veikkd,
+// which does not carry Qt Quick along.
+static int runDaemon(char *argv[]) {
+    const QString next = QCoreApplication::applicationDirPath() + "/veikkd";
+    execl(qPrintable(next), "veikkd", static_cast<char *>(nullptr));
+    execlp("veikkd", "veikkd", static_cast<char *>(nullptr));
+    std::fprintf(stderr, "%s: cannot run veikkd\n", argv[0]);
+    return 1;
 }
 
 static int printStatus(int argc, char *argv[]) {
@@ -60,18 +48,14 @@ static int printStatus(int argc, char *argv[]) {
     for (const auto &arg : app.arguments())
         json = json || arg == "--json";
 
-    QJsonObject state;
-    QFile file(stateDirectory() + "/state.json");
-    if (file.open(QIODevice::ReadOnly))
-        state = QJsonDocument::fromJson(file.readAll()).object();
-    const qint64 pid = state.value("pid").toInteger();
-    const bool running = pid > 0 && (kill(pid_t(pid), 0) == 0 || errno == EPERM);
+    const bool running = State::daemonAlive(State::directory());
+    const QJsonObject state = running ? State::read(State::directory()) : QJsonObject();
 
     QJsonArray devices;
     for (const auto &device : Evdev::scan())
         devices.append(QJsonObject{{"name", device.name}, {"path", device.path}, {"pen", device.pen},
                                    {"keypad", device.keypad}, {"virtual", device.virtualDevice}});
-    const QJsonObject out{{"daemonRunning", running}, {"problem", running ? state.value("problem") : QJsonValue("")},
+    const QJsonObject out{{"daemonRunning", running}, {"problem", state.value("problem")},
                           {"devices", devices}};
     if (json) {
         std::puts(QJsonDocument(out).toJson(QJsonDocument::Compact).constData());
@@ -81,13 +65,21 @@ static int printStatus(int argc, char *argv[]) {
             std::printf("device: %s (%s)\n", d.toObject().value("name").toString().toLocal8Bit().constData(),
                         d.toObject().value("path").toString().toLocal8Bit().constData());
     }
-    return 0;
+    return running ? 0 : 3; // 3 is what systemctl uses for "not running"
 }
 
 int main(int argc, char *argv[]) {
     const QString command = argc > 1 ? QString::fromLocal8Bit(argv[1]) : QString();
+    if (command == "--version" || command == "-v") {
+        std::printf("veikk %s\n", VEIKK_VERSION);
+        return 0;
+    }
+    if (command == "--help" || command == "-h") {
+        std::printf("usage: veikk [open | daemon | status [--json]]\n");
+        return 0;
+    }
     if (command == "daemon")
-        return runDaemon(argc, argv);
+        return runDaemon(argv);
     if (command == "status")
         return printStatus(argc, argv);
     if (!command.isEmpty() && command != "open") {
@@ -97,7 +89,7 @@ int main(int argc, char *argv[]) {
 
     QGuiApplication app(argc, argv);
     app.setApplicationName("veikk");
-    app.setApplicationVersion("0.1.0");
+    app.setApplicationVersion(VEIKK_VERSION);
 
     // Matches the window to veikk.desktop, so the compositor (Wayland app_id)
     // and the launcher pick up the installed icon.

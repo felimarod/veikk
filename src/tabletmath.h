@@ -43,6 +43,7 @@ Area fitProportions(Area area, double tabletAspect, double targetAspect, int rot
 struct Monitor {
     QString name;
     double x = 0, y = 0, w = 0, h = 0; // logical pixels in the layout
+    double mmW = 0, mmH = 0;           // physical size in millimetres; 0 when unknown
 };
 
 // The monitors Hyprland lays out, from `hyprctl monitors -j`.
@@ -55,6 +56,17 @@ struct Layout {
     // when the name is empty or unknown.
     Area region(const QString &monitor) const;
     double aspect(const QString &monitor) const;
+    // The named monitor, else the first one; an empty monitor when there are none.
+    Monitor effective(const QString &monitor) const;
 };
+
+// Real size: the pad drawn at its physical size, centred on a monitor, so a
+// centimetre on the pad is a centimetre on the screen.
+struct RealSize {
+    bool valid = false;  // false when either physical size is unknown
+    Area area;           // the part of the pad used (all of it unless the screen is smaller)
+    Area region;         // where it lands, as a share of the whole layout
+};
+RealSize realSize(double padWidthMm, double padHeightMm, const Layout &layout, const QString &monitor, int rotation);
 
 } // namespace TabletMath

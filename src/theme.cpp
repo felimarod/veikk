@@ -11,9 +11,14 @@
 #include <QStandardPaths>
 #include <cmath>
 
+static QString stateHome() {
+    const QString xdg = qEnvironmentVariable("XDG_STATE_HOME");
+    return xdg.isEmpty() ? QDir::homePath() + "/.local/state" : xdg;
+}
+
 Theme::Theme(const QString &directory, QObject *parent, const QString &hyprctl)
     : QObject(parent),
-      m_directory(directory.isEmpty() ? QDir::homePath() + "/.local/state/omarchy/current" : directory) {
+      m_directory(directory.isEmpty() ? stateHome() + "/omarchy/current" : directory) {
     m_debounce.setSingleShot(true);
     m_debounce.setInterval(80);
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, [this] { m_debounce.start(); });

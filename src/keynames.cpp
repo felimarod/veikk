@@ -72,6 +72,10 @@ QString name(int c) {
     return byCode().value(c, QStringLiteral("key%1").arg(c));
 }
 
+bool emittable(int c) {
+    return (c >= 1 && c < 0x100) || (c >= 0x160 && c < 0x2ff);
+}
+
 int code(const QString &n) {
     const QString lower = n.trimmed().toLower();
     if (byName().contains(lower))
@@ -79,7 +83,7 @@ int code(const QString &n) {
     if (lower.startsWith("key")) {
         bool ok = false;
         const int c = lower.mid(3).toInt(&ok);
-        if (ok && c > 0 && c < KEY_MAX)
+        if (ok && emittable(c))
             return c;
     }
     return 0;

@@ -16,11 +16,15 @@ struct ButtonRule {
 // Everything the daemon applies, kept in ~/.config/veikk/config.json. The
 // window writes it and the daemon watches it, so a change is live at once.
 struct Config {
+    static constexpr double kMinArea = 0.05; // smallest share of the pad in use
+
     QString monitor;           // empty: the whole layout
     int rotation = 0;          // 0, 90, 180 or 270
     TabletMath::Area area;
     bool keepProportions = true;
     double tabletAspect = 1.5; // the VK640 pad is 6 x 4 inches
+    bool realSize = false;     // pad at its physical size, centred on the monitor
+    double tabletWidthMm = 152.4; // 6 inches; the pad reports no size of its own
     TabletMath::Curve curve;
     QString barrel = "stylus"; // "stylus", "stylus2" or "none"
     QList<ButtonRule> buttons;

@@ -9,6 +9,9 @@
 namespace KeyNames {
 
 QString name(int code);
+// True for codes the virtual keypad can emit: real keys and media keys, not the
+// mouse and tablet buttons in between.
+bool emittable(int code);
 // 0 when the name is unknown.
 int code(const QString &name);
 

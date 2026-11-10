@@ -13,6 +13,16 @@ input_event make(const input_event &like, __u16 type, __u16 code, __s32 value) {
     return e;
 }
 
+bool isModifier(int code) {
+    switch (code) {
+    case KEY_LEFTCTRL: case KEY_RIGHTCTRL: case KEY_LEFTSHIFT: case KEY_RIGHTSHIFT:
+    case KEY_LEFTALT: case KEY_RIGHTALT: case KEY_LEFTMETA: case KEY_RIGHTMETA:
+        return true;
+    default:
+        return false;
+    }
+}
+
 } // namespace
 
 void PenFilter::setRanges(int xMax, int yMax, int pressureMax) {
@@ -25,6 +35,15 @@ void PenFilter::configure(const Config &config, const TabletMath::Layout &layout
     m_rotation = config.rotation;
     m_curve = config.curve;
     m_barrel = config.barrel;
+    const auto real = config.realSize
+        ? TabletMath::realSize(config.tabletWidthMm, config.tabletWidthMm / config.tabletAspect, layout,
+                               config.monitor, config.rotation)
+        : TabletMath::RealSize();
+    if (real.valid) { // 1:1 on the monitor, centred; the area follows from the sizes
+        m_region = real.region;
+        m_area = real.area;
+        return;
+    }
     m_region = layout.region(config.monitor);
     m_area = config.keepProportions
         ? TabletMath::fitProportions(config.area, config.tabletAspect, layout.aspect(config.monitor), config.rotation)
@@ -63,6 +82,10 @@ void PenFilter::feed(const input_event &e, std::vector<input_event> &out) {
         }
         break;
     case EV_SYN:
+        if (e.code == SYN_DROPPED) {
+            reset();
+            break;
+        }
         if (e.code != SYN_REPORT)
             break;
         if (m_dirty && m_haveX && m_haveY) {
@@ -115,17 +138,27 @@ void KeyFilter::feed(const input_event &e, std::vector<input_event> &out) {
     }
     m_previousChord = chord;
 
+    // Modifiers go down before the keys they modify and come up after them,
+    // or the compositor sees a bare letter and fires the wrong binding.
     bool changed = false;
-    for (int code : m_sent)
-        if (!wanted.count(code)) {
-            out.push_back(make(e, EV_KEY, code, 0));
-            changed = true;
-        }
-    for (int code : wanted)
-        if (!m_sent.count(code)) {
-            out.push_back(make(e, EV_KEY, code, 1));
-            changed = true;
-        }
+    auto release = [&](bool modifiers) {
+        for (int code : m_sent)
+            if (!wanted.count(code) && isModifier(code) == modifiers) {
+                out.push_back(make(e, EV_KEY, code, 0));
+                changed = true;
+            }
+    };
+    auto press = [&](bool modifiers) {
+        for (int code : wanted)
+            if (!m_sent.count(code) && isModifier(code) == modifiers) {
+                out.push_back(make(e, EV_KEY, code, 1));
+                changed = true;
+            }
+    };
+    release(false);
+    release(true);
+    press(true);
+    press(false);
     m_sent = wanted;
     if (changed)
         out.push_back(e);

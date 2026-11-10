@@ -35,7 +35,6 @@
   "A circle drawn on the pad stays a circle on the monitor.": "Un círculo dibujado en la tableta sigue siendo un círculo en el monitor.",
   "Pad width ÷ height": "Ancho ÷ alto de la tableta",
   "Use the whole pad": "Usar toda la tableta",
-  "Press Learn, then press a button on the pad. Type what it should send, such as ctrl+z or f5, or none to make it do nothing.": "Pulsa Aprender y luego un botón de la tableta. Escribe lo que debe enviar, como ctrl+z o f5, o none para que no haga nada.",
   "Press a pad button…": "Pulsa un botón de la tableta…",
   "Learn": "Aprender",
   "Button sends": "El botón envía",
@@ -56,8 +55,18 @@
   "Cannot open %1: %2": "No se puede abrir %1: %2",
   "Cannot open /dev/uinput: %1": "No se puede abrir /dev/uinput: %1",
   "Cannot create the virtual device: %1": "No se puede crear el dispositivo virtual: %1",
+  "Cannot set up the virtual device: %1": "No se puede configurar el dispositivo virtual: %1",
   "systemctl failed: %1": "systemctl falló: %1",
   "Cannot save the settings: %1": "No se pueden guardar los ajustes: %1",
   "Press a pad button, or type its keys like ctrl+z.": "Pulsa un botón de la tableta, o escribe sus teclas como ctrl+z.",
-  "Unknown key in \"%1\". Use names like ctrl+shift+z, f5 or none.": "Tecla desconocida en \"%1\". Usa nombres como ctrl+shift+z, f5 o none."
+  "Unknown key in \"%1\". Use names like ctrl+shift+z, f5 or none.": "Tecla desconocida en \"%1\". Usa nombres como ctrl+shift+z, f5 o none.",
+  "Press Learn, then press a button on the pad. Type what it should send, such as ctrl+z or f5, or none to make it do nothing. While the service runs, the button also acts on the desktop as it does today.": "Pulsa Aprender y luego un botón de la tableta. Escribe lo que debe enviar, como ctrl+z o f5, o none para que no haga nada. Mientras el servicio está activo, el botón también actúa en el escritorio como lo hace hoy.",
+  "Active area": "Área activa",
+  "Curve handle 1": "Control de la curva 1",
+  "Curve handle 2": "Control de la curva 2",
+  "Real size (1:1)": "Tamaño real (1:1)",
+  "Draws a centimetre on the pad as a centimetre on the screen, centred on the monitor.": "Un centímetro en la tableta es un centímetro en la pantalla, centrado en el monitor.",
+  "The pad covers %1 × %2 mm of a %3 × %4 mm screen, centred.": "La tableta cubre %1 × %2 mm de una pantalla de %3 × %4 mm, centrada.",
+  "The screen reports no physical size, so the area stays as set below.": "La pantalla no informa su tamaño físico, así que el área queda como la ajustes.",
+  "Pad width (mm)": "Ancho de la tableta (mm)"
 }

@@ -69,11 +69,16 @@ Layout Layout::fromHyprctl(const QByteArray &json) {
         const auto o = value.toObject();
         const double scale = o.value("scale").toDouble(1) > 0 ? o.value("scale").toDouble(1) : 1;
         double w = o.value("width").toDouble() / scale, h = o.value("height").toDouble() / scale;
-        // Odd transforms are the sideways ones, which swap the logical size.
-        if (o.value("transform").toInt() % 2 == 1)
+        double mmW = o.value("physicalWidth").toDouble(), mmH = o.value("physicalHeight").toDouble();
+        // Odd transforms are the sideways ones, which swap the logical size
+        // and, since the panel is turned, the physical one too.
+        if (o.value("transform").toInt() % 2 == 1) {
             std::swap(w, h);
+            std::swap(mmW, mmH);
+        }
         if (w > 0 && h > 0)
-            layout.monitors.append({o.value("name").toString(), o.value("x").toDouble(), o.value("y").toDouble(), w, h});
+            layout.monitors.append({o.value("name").toString(), o.value("x").toDouble(), o.value("y").toDouble(), w, h,
+                                    std::max(0.0, mmW), std::max(0.0, mmH)});
     }
     return layout;
 }
@@ -105,6 +110,39 @@ double Layout::aspect(const QString &monitor) const {
             return m.w / m.h;
     const Monitor box = bounds();
     return box.w / box.h;
+}
+
+Monitor Layout::effective(const QString &monitor) const {
+    for (const auto &m : monitors)
+        if (m.name == monitor)
+            return m;
+    return monitors.isEmpty() ? Monitor{} : monitors.first();
+}
+
+RealSize realSize(double padWidthMm, double padHeightMm, const Layout &layout, const QString &monitor, int rotation) {
+    RealSize out;
+    const Monitor screen = layout.effective(monitor);
+    if (padWidthMm <= 0 || padHeightMm <= 0 || screen.mmW <= 0 || screen.mmH <= 0 || screen.w <= 0 || screen.h <= 0)
+        return out;
+    // A turned pad lays its height along the screen's width.
+    const bool sideways = rotation == 90 || rotation == 270;
+    const double alongX = sideways ? padHeightMm : padWidthMm;
+    const double alongY = sideways ? padWidthMm : padHeightMm;
+    // How much of the screen the pad covers per axis; past 1 only part of the
+    // pad fits and the rest is left unused.
+    const double coverX = alongX / screen.mmW, coverY = alongY / screen.mmH;
+    const double regionW = std::min(coverX, 1.0), regionH = std::min(coverY, 1.0);
+    const double usedX = std::min(1.0, 1.0 / coverX), usedY = std::min(1.0, 1.0 / coverY);
+
+    // The screen's axes against the pad's raw ones.
+    const double areaW = sideways ? usedY : usedX, areaH = sideways ? usedX : usedY;
+    out.area = {(1 - areaW) / 2, (1 - areaH) / 2, areaW, areaH};
+
+    const Area whole = layout.region(screen.name);
+    out.region = {whole.x + whole.w * (1 - regionW) / 2, whole.y + whole.h * (1 - regionH) / 2,
+                  whole.w * regionW, whole.h * regionH};
+    out.valid = true;
+    return out;
 }
 
 } // namespace TabletMath

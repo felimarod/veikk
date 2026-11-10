@@ -1,6 +1,9 @@
 #include <linux/input-event-codes.h>
+#include <unistd.h>
 
 #include <QDir>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -9,6 +12,10 @@
 #include "config.h"
 #include "evdev.h"
 #include "filters.h"
+#include "hyprevents.h"
+#include "layoutwatcher.h"
+#include "state.h"
+#include "engine.h"
 #include "keynames.h"
 #include "tabletmath.h"
 #include "theme.h"
@@ -216,6 +223,32 @@ private slots:
         QCOMPARE(valueOf(out, EV_KEY, KEY_Z), 0);
     }
 
+    void modifiersGoDownFirstAndUpLast() {
+        KeyFilter keys;
+        keys.setRules({{{KEY_F5}, {KEY_LEFTMETA, KEY_A}}});
+        std::vector<input_event> out;
+        keys.feed(ev(EV_KEY, KEY_F5, 1), out);
+        keys.feed(ev(EV_SYN, SYN_REPORT, 0), out);
+        QCOMPARE(int(out[0].code), int(KEY_LEFTMETA)); // KEY_A (30) is numerically lower
+        QCOMPARE(int(out[1].code), int(KEY_A));
+        out.clear();
+        keys.feed(ev(EV_KEY, KEY_F5, 0), out);
+        keys.feed(ev(EV_SYN, SYN_REPORT, 0), out);
+        QCOMPARE(int(out[0].code), int(KEY_A));
+        QCOMPARE(int(out[1].code), int(KEY_LEFTMETA));
+    }
+
+    void filtersForgetHeldKeysOnReset() {
+        KeyFilter keys;
+        std::vector<input_event> out;
+        keys.feed(ev(EV_KEY, KEY_A, 1), out);
+        keys.feed(ev(EV_SYN, SYN_REPORT, 0), out);
+        keys.reset();
+        out.clear();
+        keys.feed(ev(EV_SYN, SYN_REPORT, 0), out);
+        QVERIFY(out.empty()); // no stray release of a key the new device never pressed
+    }
+
     void aButtonCanBeSwallowed() {
         KeyFilter keys;
         keys.setRules({{{KEY_F5}, {}}});
@@ -339,6 +372,220 @@ private slots:
     }
 
     // ---- theme and language -----------------------------------------------
+
+    // ---- state and daemon lock ---------------------------------------------
+
+    void onlyOneDaemonHoldsTheLock() {
+        QTemporaryDir dir;
+        QVERIFY(!State::daemonAlive(dir.path()));
+        const int first = State::acquireLock(dir.path());
+        QVERIFY(first >= 0);
+        QVERIFY(State::daemonAlive(dir.path()));
+        QCOMPARE(State::acquireLock(dir.path()), -1);
+        ::close(first);
+        QVERIFY(!State::daemonAlive(dir.path()));
+        const int again = State::acquireLock(dir.path());
+        QVERIFY(again >= 0);
+        ::close(again);
+    }
+
+    void aSecondEngineLeavesTheFirstAlone() {
+        QTemporaryDir dir;
+        const int held = State::acquireLock(dir.path());
+        QVERIFY(held >= 0);
+        write(dir.path() + "/state.json", R"({"pid":1})");
+        {
+            Engine second(dir.path() + "/config.json", dir.path());
+            QVERIFY(!second.ownsState());
+        } // its destructor must not remove the running daemon's state
+        QVERIFY(QFile::exists(dir.path() + "/state.json"));
+        ::close(held);
+    }
+
+    // ---- hyprland ------------------------------------------------------------
+
+    void layoutWatcherReportsOnlyRealChanges() {
+        QTemporaryDir dir;
+        const QString script = dir.filePath("hyprctl");
+        write(script, "#!/bin/sh\ncat " + dir.filePath("monitors.json").toLocal8Bit() + "\n");
+        QFile::setPermissions(script, QFile::permissions(script) | QFile::ExeOwner);
+        write(dir.filePath("monitors.json"),
+              R"([{"name":"A","x":0,"y":0,"width":100,"height":50,"scale":1,"transform":0}])");
+        LayoutWatcher watcher(script);
+        QSignalSpy changed(&watcher, &LayoutWatcher::changed);
+        QTRY_COMPARE(changed.count(), 1);
+        QCOMPARE(watcher.layout().monitors.size(), 1);
+        watcher.refresh(); // same answer: no news
+        QTest::qWait(300);
+        QCOMPARE(changed.count(), 1);
+        write(dir.filePath("monitors.json"),
+              R"([{"name":"A","x":0,"y":0,"width":100,"height":50,"scale":1,"transform":0},
+                  {"name":"B","x":100,"y":0,"width":100,"height":50,"scale":1,"transform":0}])");
+        watcher.refresh();
+        QTRY_COMPARE(changed.count(), 2);
+        QCOMPARE(watcher.layout().monitors.size(), 2);
+    }
+
+    void hyprlandMonitorEventsWakeTheWatcher() {
+        QTemporaryDir dir;
+        const QString path = dir.filePath("sock");
+        QLocalServer server;
+        QVERIFY(server.listen(path));
+        HyprEvents events(path);
+        QSignalSpy spy(&events, &HyprEvents::monitorsMayHaveChanged);
+        QVERIFY(events.connected());
+        QVERIFY(server.waitForNewConnection(1000));
+        QLocalSocket *client = server.nextPendingConnection();
+        client->write("workspace>>1\nfocusedmon>>A,1\n");
+        client->flush();
+        QTest::qWait(150);
+        QCOMPARE(spy.count(), 0); // not about monitors
+        client->write("monitoraddedv2>>1,DP-2,x\n");
+        client->flush();
+        QTRY_COMPARE(spy.count(), 1);
+    }
+
+    // ---- keys and config -------------------------------------------------------
+
+    void onlyEmittableKeyNamesAreAccepted() {
+        QCOMPARE(KeyNames::code("key30"), 30);
+        QCOMPARE(KeyNames::code("key0"), 0);
+        QCOMPARE(KeyNames::code("key272"), 0); // BTN_LEFT: a mouse button, not a key
+        QVERIFY(KeyNames::emittable(KEY_A));
+        QVERIFY(!KeyNames::emittable(BTN_LEFT));
+    }
+
+    void badConfigFilesFallBackToDefaults() {
+        QTemporaryDir dir;
+        write(dir.filePath("empty.json"), "");
+        QVERIFY(Config::load(dir.filePath("empty.json")) == Config());
+        write(dir.filePath("garbage.json"), "{not json");
+        QVERIFY(Config::load(dir.filePath("garbage.json")) == Config());
+        const Config wrongTypes = Config::fromJson(QJsonDocument::fromJson(
+            R"({"rotation":"left","area":{"w":"big","x":[]},"curve":5,"barrel":7,"buttons":"none"})").object());
+        QVERIFY(wrongTypes == Config());
+    }
+
+    void areaNeverShrinksBelowTheMinimum() {
+        const Config config = Config::fromJson(QJsonDocument::fromJson(R"({"area":{"w":0.001,"h":0}})").object());
+        QCOMPARE(config.area.w, Config::kMinArea);
+        QCOMPARE(config.area.h, Config::kMinArea);
+    }
+
+    void saveReportsAnUnwritablePlace() {
+        QString error;
+        QVERIFY(!Config::save(Config(), "/proc/veikk/config.json", &error));
+        QVERIFY(!error.isEmpty());
+    }
+
+    // ---- translation -----------------------------------------------------------
+
+    void pluralCategoriesFollowCldr() {
+        QCOMPARE(Translator::pluralCategory("en", 1), QString("one"));
+        QCOMPARE(Translator::pluralCategory("en", 2), QString("other"));
+        QCOMPARE(Translator::pluralCategory("ja", 1), QString("other"));
+        QCOMPARE(Translator::pluralCategory("ru", 21), QString("one"));
+        QCOMPARE(Translator::pluralCategory("ru", 3), QString("few"));
+        QCOMPARE(Translator::pluralCategory("ru", 5), QString("many"));
+    }
+
+    void spanishCatalogCoversEverySourceString() {
+        // Every tr()/qsTr() literal in src/ must have an entry, or the window
+        // silently shows English for it.
+        const QDir sources(QFileInfo(QString::fromUtf8(__FILE__)).absolutePath() + "/../src");
+        QFile catalogFile(sources.filePath("i18n/es-MX.json"));
+        QVERIFY(catalogFile.open(QIODevice::ReadOnly));
+        const QJsonObject catalog = QJsonDocument::fromJson(catalogFile.readAll()).object();
+        static const QRegularExpression call("(?<![A-Za-z_])(?:qsTr|tr)\\(\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
+        QStringList missing;
+        for (const QString &name : sources.entryList({"*.cpp", "*.qml"})) {
+            QFile file(sources.filePath(name));
+            QVERIFY(file.open(QIODevice::ReadOnly));
+            auto matches = call.globalMatch(QString::fromUtf8(file.readAll()));
+            while (matches.hasNext()) {
+                QString text = matches.next().captured(1);
+                text.replace("\\\"", "\"");
+                if (!catalog.contains(text))
+                    missing << name + ": " + text;
+            }
+        }
+        QVERIFY2(missing.isEmpty(), qPrintable(missing.join("\n")));
+        // The daemon's formats are translated by the window.
+        for (const char *format : {"Cannot open %1: %2", "Cannot open /dev/uinput: %1",
+                                   "Cannot create the virtual device: %1", "Cannot set up the virtual device: %1"})
+            QVERIFY2(catalog.contains(QString::fromLatin1(format)), format);
+    }
+
+    // ---- real size -------------------------------------------------------------
+
+    void realSizeCentresThePadAtItsPhysicalSize() {
+        // A 330 x 210 mm screen of 1920 x 1200 px, and a 150 x 100 mm pad.
+        const auto layout = Layout::fromHyprctl(
+            R"([{"name":"S","x":0,"y":0,"width":1920,"height":1200,"scale":1,"transform":0,
+                 "physicalWidth":330,"physicalHeight":210}])");
+        const auto r = realSize(150, 100, layout, "S", 0);
+        QVERIFY(r.valid);
+        QCOMPARE(r.area.w, 1.0);
+        QCOMPARE(r.area.h, 1.0);
+        QVERIFY(qAbs(r.region.w - 150.0 / 330) < 1e-9 && qAbs(r.region.h - 100.0 / 210) < 1e-9);
+        QVERIFY(qAbs(r.region.x - (1 - 150.0 / 330) / 2) < 1e-9); // centred both ways
+        QVERIFY(qAbs(r.region.y - (1 - 100.0 / 210) / 2) < 1e-9);
+        // The same distance on the pad and on the screen, in millimetres.
+        QVERIFY(qAbs(r.region.w * 330 - 150) < 1e-9 && qAbs(r.region.h * 210 - 100) < 1e-9);
+    }
+
+    void realSizeUsesOnlyWhatFitsOnASmallScreen() {
+        const auto layout = Layout::fromHyprctl(
+            R"([{"name":"S","x":0,"y":0,"width":800,"height":600,"scale":1,"transform":0,
+                 "physicalWidth":100,"physicalHeight":150}])");
+        const auto r = realSize(200, 100, layout, "S", 0);
+        QVERIFY(r.valid);
+        QVERIFY(qAbs(r.area.w - 0.5) < 1e-9 && r.area.h == 1.0); // half the pad's width fits
+        QVERIFY(qAbs(r.area.x - 0.25) < 1e-9);                   // the middle half
+        QCOMPARE(r.region.w, 1.0);
+        QVERIFY(qAbs(r.region.h - 100.0 / 150) < 1e-9);
+    }
+
+    void realSizeFollowsRotation() {
+        const auto layout = Layout::fromHyprctl(
+            R"([{"name":"S","x":0,"y":0,"width":1000,"height":1000,"scale":1,"transform":0,
+                 "physicalWidth":200,"physicalHeight":200}])");
+        const auto r = realSize(150, 100, layout, "S", 90); // pad turned: 100 wide, 150 tall on screen
+        QVERIFY(qAbs(r.region.w - 0.5) < 1e-9 && qAbs(r.region.h - 0.75) < 1e-9);
+    }
+
+    void realSizeNeedsPhysicalSizes() {
+        const auto layout = Layout::fromHyprctl(
+            R"([{"name":"S","x":0,"y":0,"width":1000,"height":1000,"scale":1,"transform":0}])");
+        QVERIFY(!realSize(150, 100, layout, "S", 0).valid);
+        QVERIFY(!realSize(150, 100, Layout(), "", 0).valid);
+    }
+
+    void penLandsInTheCentredRegionInRealSize() {
+        Config config;
+        config.realSize = true;
+        config.tabletWidthMm = 100;
+        config.tabletAspect = 1.0;
+        const auto layout = Layout::fromHyprctl(
+            R"([{"name":"S","x":0,"y":0,"width":1000,"height":1000,"scale":1,"transform":0,
+                 "physicalWidth":200,"physicalHeight":200}])");
+        PenFilter pen;
+        pen.setRanges(1000, 1000, 100);
+        pen.configure(config, layout);
+        auto out = frame(pen, {ev(EV_ABS, ABS_X, 0), ev(EV_ABS, ABS_Y, 0)});
+        QCOMPARE(valueOf(out, EV_ABS, ABS_X), 250); // a quarter in: the pad is half the screen
+        out = frame(pen, {ev(EV_ABS, ABS_X, 1000), ev(EV_ABS, ABS_Y, 1000)});
+        QCOMPARE(valueOf(out, EV_ABS, ABS_X), 750);
+        QCOMPARE(valueOf(out, EV_ABS, ABS_Y), 750);
+    }
+
+    void realSizeSettingsRoundTrip() {
+        Config config;
+        config.realSize = true;
+        config.tabletWidthMm = 200;
+        QVERIFY(Config::fromJson(config.toJson()) == config);
+        QCOMPARE(Config::fromJson(QJsonDocument::fromJson(R"({"tabletWidthMm":5})").object()).tabletWidthMm, 152.4);
+    }
 
     void themeFallsBack() {
         QTemporaryDir dir;

@@ -20,6 +20,9 @@ public:
 
     void feed(const input_event &event, std::vector<input_event> &out);
 
+    // Forget half-read frames, e.g. after the pen was unplugged.
+    void reset() { m_rawX = m_rawY = 0; m_haveX = m_haveY = m_dirty = false; }
+
 private:
     TabletMath::Area m_area;     // the part of the pad in use
     TabletMath::Area m_region;   // where it lands, as a share of the layout
@@ -41,6 +44,10 @@ public:
     // them so a caller can tell a repeat of the same chord from no news.
     QList<int> lastChord() const { return m_lastChord; }
     int sequence() const { return m_sequence; }
+
+    // Forget held keys, e.g. after the pad was unplugged. The newest chord and
+    // its counter stay, so the window does not see a reset as news.
+    void reset() { m_pressed.clear(); m_sent.clear(); m_previousChord.clear(); }
 
 private:
     QList<ButtonRule> m_rules;

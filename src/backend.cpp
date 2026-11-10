@@ -1,12 +1,13 @@
 #include "backend.h"
 
 #include <linux/input.h>
-#include <signal.h>
 #include <unistd.h>
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QCoreApplication>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
@@ -16,21 +17,12 @@
 
 #include "evdev.h"
 #include "keynames.h"
-
-namespace {
-
-QString defaultStateDirectory() {
-    const QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR");
-    return (runtime.isEmpty() ? QDir::tempPath() : runtime) + "/veikk";
-}
-
-} // namespace
+#include "state.h"
 
 Backend::Backend(const QString &configPath, const QString &stateDirectory, QObject *parent, const QString &hyprctl)
     : QObject(parent),
       m_configPath(configPath.isEmpty() ? Config::defaultPath() : configPath),
-      m_stateDirectory(stateDirectory.isEmpty() ? defaultStateDirectory() : stateDirectory),
-      m_hyprctl(hyprctl.isEmpty() ? QStandardPaths::findExecutable("hyprctl") : hyprctl) {
+      m_stateDirectory(stateDirectory.isEmpty() ? State::directory() : stateDirectory) {
     m_config = Config::load(m_configPath);
     m_lastEdit.start();
 
@@ -38,23 +30,12 @@ Backend::Backend(const QString &configPath, const QString &stateDirectory, QObje
     m_saveTimer.setInterval(150);
     connect(&m_saveTimer, &QTimer::timeout, this, &Backend::save);
 
-    connect(&m_layoutProcess, &QProcess::finished, this, [this] {
-        const auto layout = TabletMath::Layout::fromHyprctl(m_layoutProcess.readAllStandardOutput());
-        if (layout.monitors.isEmpty())
-            return;
-        bool same = layout.monitors.size() == m_layout.monitors.size();
-        for (int i = 0; same && i < layout.monitors.size(); ++i) {
-            const auto &a = layout.monitors[i], &b = m_layout.monitors[i];
-            same = a.name == b.name && a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h;
-        }
-        if (!same) {
-            m_layout = layout;
-            emit layoutChanged();
-        }
-    });
-    connect(&m_serviceProcess, &QProcess::finished, this, [this](int code) {
-        m_serviceProblem = code == 0 ? QString()
-            : tr("systemctl failed: %1").arg(QString::fromUtf8(m_serviceProcess.readAllStandardError()).trimmed());
+    m_layoutWatcher = std::make_unique<LayoutWatcher>(hyprctl);
+    connect(m_layoutWatcher.get(), &LayoutWatcher::changed, this, &Backend::layoutChanged);
+    // The computed area of real size follows the monitors.
+    connect(m_layoutWatcher.get(), &LayoutWatcher::changed, this, &Backend::configChanged);
+    connect(&m_service, &ServiceController::finished, this, [this](const QString &error) {
+        m_serviceProblem = error;
         updateProblem();
         refreshDevices();
     });
@@ -63,22 +44,23 @@ Backend::Backend(const QString &configPath, const QString &stateDirectory, QObje
     // the poll below catches a daemon that starts or dies without a write.
     connect(&m_stateWatcher, &QFileSystemWatcher::fileChanged, this, [this] {
         readState();
-        if (QFileInfo::exists(m_stateDirectory + "/state.json")
-            && !m_stateWatcher.files().contains(m_stateDirectory + "/state.json"))
-            m_stateWatcher.addPath(m_stateDirectory + "/state.json");
+        watchStateFile();
     });
+    // The daemon creates and removes its state file and virtual devices as it
+    // starts and stops, and the tablet's nodes come and go with the cable, so
+    // watch those; the timer is only a net for what a watch cannot see.
+    QDir().mkpath(m_stateDirectory);
+    m_stateWatcher.addPath(m_stateDirectory);
+    connect(&m_stateWatcher, &QFileSystemWatcher::directoryChanged, this, [this] { refreshDevices(); });
+    connect(&m_deviceWatcher, &QFileSystemWatcher::directoryChanged, this, [this] {
+        QTimer::singleShot(150, this, &Backend::refreshDevices);
+    });
+    m_deviceWatcher.addPath("/dev/input");
     connect(&m_pollTimer, &QTimer::timeout, this, [this] {
         refreshDevices();
-        if (QFileInfo::exists(m_stateDirectory + "/state.json")
-            && !m_stateWatcher.files().contains(m_stateDirectory + "/state.json"))
-            m_stateWatcher.addPath(m_stateDirectory + "/state.json");
+        watchStateFile();
     });
-    m_pollTimer.start(1000);
-
-    refreshLayout();
-    QTimer *layoutTimer = new QTimer(this);
-    connect(layoutTimer, &QTimer::timeout, this, &Backend::refreshLayout);
-    layoutTimer->start(3000);
+    m_pollTimer.start(5000);
 
     refreshDevices();
 }
@@ -93,7 +75,7 @@ Backend::~Backend() {
 
 QStringList Backend::monitors() const {
     QStringList names;
-    for (const auto &m : m_layout.monitors)
+    for (const auto &m : layout().monitors)
         names << m.name;
     return names;
 }
@@ -107,9 +89,25 @@ QVariantList Backend::buttons() const {
 
 // ---- settings --------------------------------------------------------------
 
+TabletMath::RealSize Backend::real() const {
+    if (!m_config.realSize)
+        return {};
+    return TabletMath::realSize(m_config.tabletWidthMm, m_config.tabletWidthMm / m_config.tabletAspect, layout(),
+                                m_config.monitor, m_config.rotation);
+}
+
+TabletMath::Area Backend::effectiveArea() const {
+    const auto r = real();
+    return r.valid ? r.area : m_config.area;
+}
+
+QString Backend::displayMonitor() const {
+    return m_config.realSize ? layout().effective(m_config.monitor).name : m_config.monitor;
+}
+
 void Backend::fitArea(Config &config) const {
-    if (config.keepProportions)
-        config.area = TabletMath::fitProportions(config.area, config.tabletAspect, m_layout.aspect(config.monitor),
+    if (config.keepProportions && !config.realSize)
+        config.area = TabletMath::fitProportions(config.area, config.tabletAspect, layout().aspect(config.monitor),
                                                  config.rotation);
 }
 
@@ -176,8 +174,8 @@ void Backend::setRotation(int degrees) {
 
 void Backend::setArea(double x, double y, double w, double h) {
     Config next = m_config;
-    next.area.w = std::clamp(w, 0.05, 1.0);
-    next.area.h = std::clamp(h, 0.05, 1.0);
+    next.area.w = std::clamp(w, Config::kMinArea, 1.0);
+    next.area.h = std::clamp(h, Config::kMinArea, 1.0);
     next.area.x = std::clamp(x, 0.0, 1 - next.area.w);
     next.area.y = std::clamp(y, 0.0, 1 - next.area.h);
     commit(next, "area");
@@ -187,6 +185,20 @@ void Backend::resetArea() {
     Config next = m_config;
     next.area = {};
     commit(next, "reset-area");
+}
+
+void Backend::setRealSize(bool on) {
+    Config next = m_config;
+    next.realSize = on;
+    commit(next, "real-size");
+}
+
+void Backend::setTabletWidthMm(double mm) {
+    if (mm < 20 || mm > 1000)
+        return;
+    Config next = m_config;
+    next.tabletWidthMm = mm;
+    commit(next, "pad-width");
 }
 
 void Backend::setKeepProportions(bool keep) {
@@ -259,17 +271,7 @@ void Backend::removeButton(int index) {
 }
 
 void Backend::setDaemonEnabled(bool enabled) {
-    if (m_serviceProcess.state() != QProcess::NotRunning)
-        return;
-    m_serviceProcess.start("systemctl", {"--user", enabled ? "enable" : "disable", "--now", "veikk.service"});
-}
-
-// ---- layout ----------------------------------------------------------------
-
-void Backend::refreshLayout() {
-    if (m_hyprctl.isEmpty() || m_layoutProcess.state() != QProcess::NotRunning)
-        return;
-    m_layoutProcess.start(m_hyprctl, {"-j", "monitors"});
+    m_service.setEnabled(enabled);
 }
 
 // ---- devices ---------------------------------------------------------------
@@ -283,25 +285,34 @@ void Backend::updateProblem() {
     emit deviceChanged();
 }
 
+void Backend::watchStateFile() {
+    const QString path = m_stateDirectory + "/state.json";
+    // The daemon replaces the file on every write, which drops it from the watch.
+    if (QFileInfo::exists(path) && !m_stateWatcher.files().contains(path))
+        m_stateWatcher.addPath(path);
+}
+
 void Backend::readState() {
-    QFile file(m_stateDirectory + "/state.json");
-    bool running = false;
+    const bool running = State::daemonAlive(m_stateDirectory);
     QString problem;
-    if (file.open(QIODevice::ReadOnly)) {
-        const auto state = QJsonDocument::fromJson(file.readAll()).object();
-        const qint64 pid = state.value("pid").toInteger();
-        // EPERM still means the process exists, just not ours to signal.
-        running = pid > 0 && (kill(pid_t(pid), 0) == 0 || errno == EPERM);
-        if (running) {
+    if (running) {
+        const auto state = State::read(m_stateDirectory);
+        // The daemon sends the English format and its arguments; translate here.
+        const QString format = state.value("problemFormat").toString();
+        if (!format.isEmpty()) {
+            problem = QCoreApplication::translate("Engine", format.toUtf8().constData());
+            for (const auto &arg : state.value("problemArgs").toArray())
+                problem = problem.arg(arg.toString());
+        } else {
             problem = state.value("problem").toString();
-            const int sequence = state.value("sequence").toInt();
-            if (sequence != m_stateSequence) {
-                m_stateSequence = sequence;
-                const QString chord = state.value("chord").toString();
-                if (sequence > 0 && chord != "none") {
-                    m_lastChord = chord;
-                    emit chordChanged();
-                }
+        }
+        const int sequence = state.value("sequence").toInt();
+        if (sequence != m_stateSequence) {
+            m_stateSequence = sequence;
+            const QString chord = state.value("chord").toString();
+            if (sequence > 0 && chord != "none") {
+                m_lastChord = chord;
+                emit chordChanged();
             }
         }
     }
@@ -309,7 +320,7 @@ void Backend::readState() {
         m_daemonRunning = running;
         emit deviceChanged();
     }
-    m_daemonProblem = running ? problem : QString();
+    m_daemonProblem = problem;
     updateProblem();
 }
 
@@ -343,8 +354,10 @@ void Backend::refreshDevices() {
     }
 
     bool changed = false;
-    if (penPath != m_penPath || processed != m_penProcessed || (penPath.isEmpty() != (m_penFd < 0))) {
-        m_penNotifier.reset();
+    if (penPath != m_penPath || processed != m_penProcessed || (penPath.isEmpty() != (m_penFd < 0) && penPath != m_failedPenPath)) {
+        if (m_penNotifier)
+            m_penNotifier.release()->deleteLater(); // may be running right now
+        m_failedPenPath.clear();
         if (m_penFd >= 0)
             ::close(m_penFd);
         m_penFd = -1;
@@ -356,6 +369,7 @@ void Backend::refreshDevices() {
             m_penFd = Evdev::open(penPath);
             if (m_penFd < 0) {
                 m_openProblem = tr("Cannot open %1: %2").arg(penPath, QString::fromLocal8Bit(strerror(errno)));
+                m_failedPenPath = penPath; // do not retry every scan
             } else {
                 m_openProblem.clear();
                 m_xMax = std::max(1, Evdev::absRange(m_penFd, ABS_X).max);
@@ -369,7 +383,8 @@ void Backend::refreshDevices() {
         emit penChanged();
     }
     if (keypadPath != m_keypadPath) {
-        m_keypadNotifier.reset();
+        if (m_keypadNotifier)
+            m_keypadNotifier.release()->deleteLater();
         if (m_keypadFd >= 0)
             ::close(m_keypadFd);
         m_keypadFd = -1;
@@ -398,9 +413,14 @@ void Backend::readPen() {
     input_event buffer[64];
     for (;;) {
         const ssize_t n = ::read(m_penFd, buffer, sizeof buffer);
-        if (n < 0) {
-            if (errno != EAGAIN)
-                refreshDevices(); // unplugged: drop the descriptor on the next scan
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n <= 0) {
+            if (n == 0 || errno != EAGAIN) {
+                // Unplugged: stop polling the dead descriptor; the next scan reopens.
+                if (m_penNotifier)
+                    m_penNotifier->setEnabled(false);
+            }
             return;
         }
         for (ssize_t i = 0; i < n / ssize_t(sizeof(input_event)); ++i) {
@@ -425,7 +445,7 @@ void Backend::readPen() {
                 if (m_penProcessed) {
                     // The daemon spreads the pen over the whole layout; show it
                     // relative to the monitor the pad is mapped to.
-                    const auto r = m_layout.region(m_config.monitor);
+                    const auto r = layout().region(displayMonitor());
                     x = std::clamp((x - r.x) / r.w, 0.0, 1.0);
                     y = std::clamp((y - r.y) / r.h, 0.0, 1.0);
                 }
@@ -446,8 +466,13 @@ void Backend::readKeypad() {
     input_event buffer[32];
     for (;;) {
         const ssize_t n = ::read(m_keypadFd, buffer, sizeof buffer);
-        if (n < 0)
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n <= 0) {
+            if ((n == 0 || errno != EAGAIN) && m_keypadNotifier)
+                m_keypadNotifier->setEnabled(false);
             return;
+        }
         for (ssize_t i = 0; i < n / ssize_t(sizeof(input_event)); ++i) {
             const input_event &e = buffer[i];
             if (e.type == EV_KEY) {
