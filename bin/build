@@ -2,10 +2,11 @@
 set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+command -v qmake6 >/dev/null || { echo "qmake6 not found: install qt6-base" >&2; exit 1; }
 mkdir -p "$ROOT/build"
 cd "$ROOT/build"
 
 qmake6 "$ROOT/veikk.pro"
-make -j"$(nproc)"
+make -j"$(nproc)" "$@"
 
-echo "Built $ROOT/build/veikk"
+echo "Built $ROOT/build/veikk and $ROOT/build/veikkd"

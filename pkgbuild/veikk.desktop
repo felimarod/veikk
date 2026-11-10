@@ -1,11 +1,13 @@
 [Desktop Entry]
 Type=Application
 Name=Veikk
-Name[es_MX]=Veikk
+GenericName=Drawing tablet settings
+GenericName[es_MX]=Ajustes de tableta de dibujo
 Comment=Set up a Veikk drawing tablet
 Comment[es_MX]=Configura una tableta de dibujo Veikk
+Keywords=tablet;pen;wacom;veikk;drawing;
 Exec=veikk
 Icon=veikk
 Terminal=false
-Categories=Utility;Settings;
+Categories=Utility;Settings;HardwareSettings;
 StartupWMClass=veikk

@@ -1,25 +1,40 @@
+# Builds from the checkout this file lives in (pkgbuild/ inside the repository),
+# so `makepkg` packages exactly the code on disk. For a release, replace
+# prepare() with a source=() tarball and a checksum.
 pkgname=veikk
 pkgver=0.1.0
-pkgrel=1
+pkgrel=2
 pkgdesc='Set up a Veikk drawing tablet: active area, pressure curve and pad buttons'
 arch=('x86_64' 'aarch64')
 license=('MIT')
 depends=('qt6-base' 'qt6-declarative' 'qt6-wayland')
 makedepends=('gcc' 'make')
-source=()
-sha256sums=()
+optdepends=('hyprland: choose which monitor the pad maps to')
+options=('!debug')
+install=veikk.install
+
+prepare() {
+  rm -rf "$srcdir/$pkgname"
+  mkdir -p "$srcdir/$pkgname"
+  # The tree without build output, so stale objects never end up in a package.
+  tar -C "$startdir/.." --exclude=./build --exclude=./.git --exclude=./pkgbuild/pkg \
+      --exclude=./pkgbuild/src --exclude='*.pkg.tar.*' -cf - . | tar -C "$srcdir/$pkgname" -xf -
+}
 
 build() {
-  cd "$startdir/.."
-  ./bin/build
+  cd "$srcdir/$pkgname"
+  mkdir -p build && cd build
+  qmake6 ../veikk.pro VERSION="$pkgver" PREFIX=/usr \
+    QMAKE_CXXFLAGS+="$CXXFLAGS" QMAKE_LFLAGS+="$LDFLAGS"
+  make
+}
+
+check() {
+  cd "$srcdir/$pkgname"
+  ./bin/test
 }
 
 package() {
-  cd "$startdir/.."
-  install -Dm755 build/veikk "$pkgdir/usr/bin/veikk"
-  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
-  install -Dm644 "$startdir/veikk.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/veikk.svg"
-  install -Dm644 "$startdir/veikk.desktop" "$pkgdir/usr/share/applications/veikk.desktop"
-  install -Dm644 "$startdir/veikk.service" "$pkgdir/usr/lib/systemd/user/veikk.service"
-  install -Dm644 "$startdir/70-veikk.rules" "$pkgdir/usr/lib/udev/rules.d/70-veikk.rules"
+  cd "$srcdir/$pkgname/build"
+  make INSTALL_ROOT="$pkgdir" install
 }

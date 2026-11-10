@@ -12,7 +12,7 @@ same standard HID reports and may work, but have not been tried.
 
 Hyprland does not register the VK640's pen as a tablet, only its mouse and
 keyboard interfaces, so none of Hyprland's `input:tablet:*` options reach it.
-`veikk daemon` grabs the real pen and pad keys and re-emits them through a
+`veikkd` grabs the real pen and pad keys and re-emits them through a
 virtual tablet (`Veikk Virtual Tablet`) and keypad that Hyprland does
 recognise. Everything is done in software through evdev and uinput: nothing is
 ever written to the tablet itself.
@@ -21,9 +21,14 @@ ever written to the tablet itself.
 
 ```sh
 veikk           # the window
-veikk daemon    # the service the window starts and stops
-veikk status    # add --json for scripts
+veikkd          # the service the window starts and stops (veikk daemon runs it too)
+veikk status    # add --json for scripts; exits 3 when the service is not running
+veikk --version
 ```
+
+After installing the package, **log out and back in once**: the udev rule gives
+your session access to the tablet and to `/dev/uinput`, and that only applies
+to new sessions.
 
 Press **Start service** in the window; it runs `systemctl --user enable --now
 veikk.service`. Settings live in `~/.config/veikk/config.json` and the daemon
@@ -44,6 +49,27 @@ veikk already spreads the pen over the monitor you pick, so you only need that
 if you prefer Hyprland to own the monitor choice. Leave the window's monitor on
 "All monitors" in that case.
 
+## Real size
+
+Turn on **Real size (1:1)** on the Area page and the pad is drawn at its
+physical size, centred on the monitor: a centimetre on the pad is a centimetre
+on the screen. The monitor's size comes from Hyprland (`hyprctl monitors`), and
+the pad's from **Pad width (mm)**, which starts at 152.4 mm (6 in, the VK640)
+because the pad reports no size of its own; the height follows the pad's
+width ÷ height. If the screen is smaller than the pad along an axis, only the
+middle part of the pad that fits is used. With "All monitors" it uses the first
+monitor. If a screen reports no physical size, the area stays as set by hand.
+
+## Security
+
+The service needs `/dev/uinput` to create its virtual devices, so the udev rule
+(`pkgbuild/70-veikk.rules`) gives the logged-in user access to it with
+`uaccess`. Any program running as you can then create input devices too, the
+same exposure as `ydotool`. It also gives you the tablet's own input nodes,
+including the pad's keyboard interface. Nothing is granted to other users or
+groups. `veikk.service` runs with `NoNewPrivileges`, a restricted syscall and
+address-family set, and no write access beyond your own files.
+
 ## Shortcuts
 
 | Key | Action |
@@ -57,15 +83,44 @@ if you prefer Hyprland to own the monitor choice. Leave the window's monitor on
 ## Build
 
 ```sh
-bin/build      # build/veikk
+bin/build      # build/veikk (window) and build/veikkd (service)
 bin/test       # unit tests, offscreen
 bin/install    # makepkg -fsi, so it shows up in the launcher
 ```
 
-Needs `qt6-base`, `qt6-declarative` and `qt6-wayland`.
+Needs `qt6-base`, `qt6-declarative` and `qt6-wayland`. The service links only
+Qt Core. `qmake6 veikk.pro VERSION=x.y.z PREFIX=/usr && make install` also works
+(set `INSTALL_ROOT` to stage it).
+
+## Troubleshooting
+
+- `veikk status` lists the tablet's devices and whether the service runs.
+  `journalctl --user -u veikk` shows what the service said.
+- "Cannot open /dev/input/eventN": the udev rule has not reached your session
+  yet. Log out and back in, or run `udevadm trigger --subsystem-match=input`
+  and replug the tablet.
+- "Cannot open /dev/uinput": same cause, for the virtual devices.
+- The monitor list is empty or the pad maps to everything: the service could
+  not run `hyprctl`. It needs `HYPRLAND_INSTANCE_SIGNATURE` in the systemd user
+  environment; Omarchy's session start imports it. Check with
+  `systemctl --user show-environment | grep HYPRLAND`.
+- "another daemon is already running": a second `veikkd` exits with status 2 and
+  leaves the first alone. Stop the other one (or the official `vktablet`).
+
+## Files
+
+- `~/.config/veikk/config.json`: written by the window, watched by the service.
+  Fields: `monitor`, `rotation`, `area{x,y,w,h}`, `keepProportions`,
+  `tabletAspect`, `curve{x1,y1,x2,y2}`, `barrel`, `buttons[{from,to}]`.
+  Missing or invalid values fall back to the defaults.
+- `$XDG_RUNTIME_DIR/veikk/state.json`: written by the service: `pen`, `keypad`,
+  `problem` (plus `problemFormat`/`problemArgs` for translation), `chord` and
+  `sequence`. `daemon.lock` in the same folder is held while the service runs.
 
 ## Limits
 
+- Monitor selection needs Hyprland (`hyprctl`). Under another compositor the pad
+  maps to the whole desktop.
 - Pressure, area and buttons are applied by the service, so they stop applying
   if it stops, and the pad goes back to behaving as the desktop saw it before.
 - The tablet's own on-board settings (the proprietary `hidraw` channel the

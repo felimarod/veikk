@@ -1,7 +1,7 @@
 #!/bin/sh
+# Builds a package from this checkout and installs it with pacman.
 set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-"$ROOT/bin/build"
 cd "$ROOT/pkgbuild"
 exec makepkg -fsi "$@"

@@ -1,6 +1,8 @@
-# Let the logged-in user read the tablet's input nodes, the virtual devices the
-# veikk service makes (the window watches those), and create the virtual
-# devices themselves.
+# Access for the logged-in user (uaccess), nothing wider:
+#  - the tablet's own input nodes, which the daemon grabs (VID 2feb);
+#  - the virtual devices the daemon makes, which the window watches;
+#  - /dev/uinput, to create those virtual devices. Anything running as you can
+#    then create input devices too, as with ydotool and similar tools.
 SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="2feb", TAG+="uaccess"
 SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Veikk Virtual *", TAG+="uaccess"
 KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"

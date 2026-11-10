@@ -2,3 +2,14 @@
 /pkgbuild/pkg/
 /pkgbuild/src/
 *.pkg.tar.*
+.qmake.stash
+.qmake.cache
+Makefile*
+*.o
+moc_*
+qrc_*
+*.user
+compile_commands.json
+.cache/
+.vscode/
+.idea/
