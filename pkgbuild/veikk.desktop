@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Veikk
+Name[es_MX]=Veikk
+Comment=Set up a Veikk drawing tablet
+Comment[es_MX]=Configura una tableta de dibujo Veikk
+Exec=veikk
+Icon=veikk
+Terminal=false
+Categories=Utility;Settings;
+StartupWMClass=veikk

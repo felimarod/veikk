@@ -1,0 +1,4 @@
+# Let the logged-in user read the tablet's input nodes and create the virtual
+# devices the veikk service hands the desktop.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="2feb", TAG+="uaccess"
+KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"
