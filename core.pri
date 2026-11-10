@@ -8,7 +8,7 @@ DEFINES += VEIKK_VERSION=\\\"$$VERSION\\\"
 
 INCLUDEPATH += $$PWD/src
 
-CORE_HEADERS = config engine evdev filters hyprevents keynames layoutwatcher state tabletmath
+CORE_HEADERS = config engine evdev filters hyprevents keynames layoutwatcher placement state tabletmath
 for(name, CORE_HEADERS) {
     HEADERS += $$PWD/src/$${name}.h
     SOURCES += $$PWD/src/$${name}.cpp

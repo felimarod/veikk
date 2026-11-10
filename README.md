@@ -49,10 +49,19 @@ veikk already spreads the pen over the monitor you pick, so you only need that
 if you prefer Hyprland to own the monitor choice. Leave the window's monitor on
 "All monitors" in that case.
 
+## Placing the pad on the screen
+
+The Area page draws the screen as the background and the pad as a rectangle on
+it. Drag the rectangle to choose where on the monitor the pad acts, and its
+corner to resize it; the arrow keys move it and Shift+arrows resize it. With
+**Keep proportions** the rectangle keeps the pad's shape, so a circle drawn on
+the pad stays a circle. The small picture under it picks which part of the pad
+is used.
+
 ## Real size
 
 Turn on **Real size (1:1)** on the Area page and the pad is drawn at its
-physical size, centred on the monitor: a centimetre on the pad is a centimetre
+physical size on the monitor: a centimetre on the pad is a centimetre
 on the screen. The monitor's size comes from Hyprland (`hyprctl monitors`), and
 the pad's from **Pad width (mm)**, which starts at 152.4 mm (6 in, the VK640)
 because the pad reports no size of its own; the height follows the pad's
@@ -110,7 +119,8 @@ Qt Core. `qmake6 veikk.pro VERSION=x.y.z PREFIX=/usr && make install` also works
 ## Files
 
 - `~/.config/veikk/config.json`: written by the window, watched by the service.
-  Fields: `monitor`, `rotation`, `area{x,y,w,h}`, `keepProportions`,
+  Fields: `monitor`, `rotation`, `area{x,y,w,h}` (the part of the pad), `target{x,y,w,h}` (where on the
+  monitor), `keepProportions`,
   `tabletAspect`, `curve{x1,y1,x2,y2}`, `barrel`, `buttons[{from,to}]`.
   Missing or invalid values fall back to the defaults.
 - `$XDG_RUNTIME_DIR/veikk/state.json`: written by the service: `pen`, `keypad`,

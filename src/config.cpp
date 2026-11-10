@@ -11,7 +11,7 @@
 #include "keynames.h"
 
 bool Config::operator==(const Config &o) const {
-    return monitor == o.monitor && rotation == o.rotation && area == o.area
+    return monitor == o.monitor && rotation == o.rotation && area == o.area && target == o.target
         && keepProportions == o.keepProportions && tabletAspect == o.tabletAspect && realSize == o.realSize
         && tabletWidthMm == o.tabletWidthMm && curve == o.curve
         && barrel == o.barrel && buttons == o.buttons;
@@ -25,6 +25,7 @@ QJsonObject Config::toJson() const {
         {"monitor", monitor},
         {"rotation", rotation},
         {"area", QJsonObject{{"x", area.x}, {"y", area.y}, {"w", area.w}, {"h", area.h}}},
+        {"target", QJsonObject{{"x", target.x}, {"y", target.y}, {"w", target.w}, {"h", target.h}}},
         {"keepProportions", keepProportions},
         {"tabletAspect", tabletAspect},
         {"realSize", realSize},
@@ -49,6 +50,12 @@ Config Config::fromJson(const QJsonObject &o) {
     c.area.h = std::max(kMinArea, unit(area, "h", 1));
     c.area.x = std::min(unit(area, "x", 0), 1 - c.area.w);
     c.area.y = std::min(unit(area, "y", 0), 1 - c.area.h);
+
+    const auto target = o.value("target").toObject();
+    c.target.w = std::max(kMinArea, unit(target, "w", 1));
+    c.target.h = std::max(kMinArea, unit(target, "h", 1));
+    c.target.x = std::min(unit(target, "x", 0), 1 - c.target.w);
+    c.target.y = std::min(unit(target, "y", 0), 1 - c.target.h);
 
     c.keepProportions = o.value("keepProportions").toBool(true);
     const double aspect = o.value("tabletAspect").toDouble(1.5);

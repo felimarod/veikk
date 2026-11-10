@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "placement.h"
 namespace {
 
 input_event make(const input_event &like, __u16 type, __u16 code, __s32 value) {
@@ -35,19 +36,9 @@ void PenFilter::configure(const Config &config, const TabletMath::Layout &layout
     m_rotation = config.rotation;
     m_curve = config.curve;
     m_barrel = config.barrel;
-    const auto real = config.realSize
-        ? TabletMath::realSize(config.tabletWidthMm, config.tabletWidthMm / config.tabletAspect, layout,
-                               config.monitor, config.rotation)
-        : TabletMath::RealSize();
-    if (real.valid) { // 1:1 on the monitor, centred; the area follows from the sizes
-        m_region = real.region;
-        m_area = real.area;
-        return;
-    }
-    m_region = layout.region(config.monitor);
-    m_area = config.keepProportions
-        ? TabletMath::fitProportions(config.area, config.tabletAspect, layout.aspect(config.monitor), config.rotation)
-        : config.area;
+    const Placement where = placement(config, layout);
+    m_area = where.area;
+    m_region = where.region;
 }
 
 void PenFilter::feed(const input_event &e, std::vector<input_event> &out) {

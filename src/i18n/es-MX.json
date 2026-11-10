@@ -65,10 +65,12 @@
   "Curve handle 1": "Control de la curva 1",
   "Curve handle 2": "Control de la curva 2",
   "Real size (1:1)": "Tamaño real (1:1)",
-  "Draws a centimetre on the pad as a centimetre on the screen, centred on the monitor.": "Un centímetro en la tableta es un centímetro en la pantalla, centrado en el monitor.",
-  "The pad covers %1 × %2 mm of a %3 × %4 mm screen, centred.": "La tableta cubre %1 × %2 mm de una pantalla de %3 × %4 mm, centrada.",
   "The screen reports no physical size, so the area stays as set below.": "La pantalla no informa su tamaño físico, así que el área queda como la ajustes.",
   "Pad width (mm)": "Ancho de la tableta (mm)",
   "Tablet": "Tableta",
-  "Screen: %1": "Pantalla: %1"
+  "Screen: %1": "Pantalla: %1",
+  "Where the tablet acts": "Dónde actúa la tableta",
+  "Fill the screen": "Llenar la pantalla",
+  "A centimetre on the pad is a centimetre on the screen. Drag the rectangle to place it.": "Un centímetro en la tableta es un centímetro en la pantalla. Arrastra el rectángulo para ubicarlo.",
+  "The pad covers %1 × %2 mm of a %3 × %4 mm screen.": "La tableta cubre %1 × %2 mm de una pantalla de %3 × %4 mm."
 }

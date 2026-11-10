@@ -90,40 +90,11 @@ QVariantList Backend::buttons() const {
 
 // ---- settings --------------------------------------------------------------
 
-TabletMath::RealSize Backend::real() const {
-    if (!m_config.realSize)
-        return {};
-    return TabletMath::realSize(m_config.tabletWidthMm, m_config.tabletWidthMm / m_config.tabletAspect, layout(),
-                                m_config.monitor, m_config.rotation);
-}
-
-double Backend::coverW() const {
-    const auto r = real();
-    return r.valid ? r.region.w / layout().region(displayMonitor()).w : 1.0;
-}
-
-double Backend::coverH() const {
-    const auto r = real();
-    return r.valid ? r.region.h / layout().region(displayMonitor()).h : 1.0;
-}
-
-TabletMath::Area Backend::effectiveArea() const {
-    const auto r = real();
-    return r.valid ? r.area : m_config.area;
-}
-
 QString Backend::displayMonitor() const {
     return m_config.realSize ? layout().effective(m_config.monitor).name : m_config.monitor;
 }
 
-void Backend::fitArea(Config &config) const {
-    if (config.keepProportions && !config.realSize)
-        config.area = TabletMath::fitProportions(config.area, config.tabletAspect, layout().aspect(config.monitor),
-                                                 config.rotation);
-}
-
 void Backend::commit(Config next, const char *kind) {
-    fitArea(next);
     if (next == m_config)
         return;
     // Dragging fires hundreds of edits; one undo step per gesture, not per pixel.
@@ -190,6 +161,21 @@ void Backend::setArea(double x, double y, double w, double h) {
     next.area.x = std::clamp(x, 0.0, 1 - next.area.w);
     next.area.y = std::clamp(y, 0.0, 1 - next.area.h);
     commit(next, "area");
+}
+
+void Backend::setTarget(double x, double y, double w, double h) {
+    Config next = m_config;
+    next.target.w = std::clamp(w, Config::kMinArea, 1.0);
+    next.target.h = std::clamp(h, Config::kMinArea, 1.0);
+    next.target.x = std::clamp(x, 0.0, 1 - next.target.w);
+    next.target.y = std::clamp(y, 0.0, 1 - next.target.h);
+    commit(next, "target");
+}
+
+void Backend::resetTarget() {
+    Config next = m_config;
+    next.target = {};
+    commit(next, "reset-target");
 }
 
 void Backend::resetArea() {

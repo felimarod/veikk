@@ -11,6 +11,7 @@
 
 #include "config.h"
 #include "layoutwatcher.h"
+#include "placement.h"
 #include "servicecontroller.h"
 #include "tabletmath.h"
 
@@ -35,9 +36,11 @@ class Backend : public QObject {
     Q_PROPERTY(double tabletHeightMm READ tabletHeightMm NOTIFY configChanged)
     Q_PROPERTY(double monitorWidthMm READ monitorWidthMm NOTIFY configChanged)
     Q_PROPERTY(double monitorHeightMm READ monitorHeightMm NOTIFY configChanged)
-    // The share of the monitor the pad covers, per axis: 1 unless real size shrinks it.
-    Q_PROPERTY(double coverW READ coverW NOTIFY configChanged)
-    Q_PROPERTY(double coverH READ coverH NOTIFY configChanged)
+    // Where on the monitor the pad acts, as shares of it.
+    Q_PROPERTY(double targetX READ targetX NOTIFY configChanged)
+    Q_PROPERTY(double targetY READ targetY NOTIFY configChanged)
+    Q_PROPERTY(double targetW READ targetW NOTIFY configChanged)
+    Q_PROPERTY(double targetH READ targetH NOTIFY configChanged)
     Q_PROPERTY(double areaX READ areaX NOTIFY configChanged)
     Q_PROPERTY(double areaY READ areaY NOTIFY configChanged)
     Q_PROPERTY(double areaW READ areaW NOTIFY configChanged)
@@ -78,18 +81,20 @@ public:
     QStringList monitors() const;
     double monitorAspect() const { return layout().aspect(displayMonitor()); }
     bool realSize() const { return m_config.realSize; }
-    double coverW() const;
-    double coverH() const;
-    bool realActive() const { return real().valid; }
+    double targetX() const { return placed().target.x; }
+    double targetY() const { return placed().target.y; }
+    double targetW() const { return placed().target.w; }
+    double targetH() const { return placed().target.h; }
+    bool realActive() const { return placed().real; }
     double tabletWidthMm() const { return m_config.tabletWidthMm; }
     double tabletHeightMm() const { return m_config.tabletWidthMm / m_config.tabletAspect; }
     double monitorWidthMm() const { return layout().effective(m_config.monitor).mmW; }
     double monitorHeightMm() const { return layout().effective(m_config.monitor).mmH; }
     int rotation() const { return m_config.rotation; }
-    double areaX() const { return effectiveArea().x; }
-    double areaY() const { return effectiveArea().y; }
-    double areaW() const { return effectiveArea().w; }
-    double areaH() const { return effectiveArea().h; }
+    double areaX() const { return placed().area.x; }
+    double areaY() const { return placed().area.y; }
+    double areaW() const { return placed().area.w; }
+    double areaH() const { return placed().area.h; }
     bool keepProportions() const { return m_config.keepProportions; }
     double tabletAspect() const { return m_config.tabletAspect; }
     double curveX1() const { return m_config.curve.x1; }
@@ -115,6 +120,8 @@ public:
     Q_INVOKABLE void setMonitor(const QString &name);
     Q_INVOKABLE void setRotation(int degrees);
     Q_INVOKABLE void setArea(double x, double y, double w, double h);
+    Q_INVOKABLE void setTarget(double x, double y, double w, double h);
+    Q_INVOKABLE void resetTarget();
     Q_INVOKABLE void resetArea();
     Q_INVOKABLE void setRealSize(bool on);
     Q_INVOKABLE void setTabletWidthMm(double mm);
@@ -143,9 +150,7 @@ signals:
 
 private:
     void commit(Config next, const char *kind);
-    void fitArea(Config &config) const;
-    TabletMath::RealSize real() const;
-    TabletMath::Area effectiveArea() const;
+    Placement placed() const { return placement(m_config, layout()); }
     // The monitor the pad drives: the chosen one, or in real size the first.
     QString displayMonitor() const;
     void applyHistory(Config config);

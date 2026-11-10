@@ -14,6 +14,7 @@
 #include "filters.h"
 #include "hyprevents.h"
 #include "layoutwatcher.h"
+#include "placement.h"
 #include "state.h"
 #include "engine.h"
 #include "keynames.h"
@@ -585,6 +586,55 @@ private slots:
         config.tabletWidthMm = 200;
         QVERIFY(Config::fromJson(config.toJson()) == config);
         QCOMPARE(Config::fromJson(QJsonDocument::fromJson(R"({"tabletWidthMm":5})").object()).tabletWidthMm, 152.4);
+    }
+
+    // ---- placement on the screen -----------------------------------------------
+
+    void theTargetMovesWhereThePadActs() {
+        Config config;
+        config.keepProportions = false;
+        config.target = {0.5, 0.25, 0.5, 0.5}; // the bottom-right-ish quarter
+        const auto layout = Layout::fromHyprctl(
+            R"([{"name":"S","x":0,"y":0,"width":1000,"height":1000,"scale":1,"transform":0}])");
+        PenFilter pen;
+        pen.setRanges(1000, 1000, 100);
+        pen.configure(config, layout);
+        auto out = frame(pen, {ev(EV_ABS, ABS_X, 0), ev(EV_ABS, ABS_Y, 0)});
+        QCOMPARE(valueOf(out, EV_ABS, ABS_X), 500);
+        QCOMPARE(valueOf(out, EV_ABS, ABS_Y), 250);
+        out = frame(pen, {ev(EV_ABS, ABS_X, 1000), ev(EV_ABS, ABS_Y, 1000)});
+        QCOMPARE(valueOf(out, EV_ABS, ABS_X), 1000);
+        QCOMPARE(valueOf(out, EV_ABS, ABS_Y), 750);
+    }
+
+    void keepingProportionsReshapesTheTarget() {
+        // A 3:2 pad on a 2:1 screen: the target keeps its width and gets the
+        // height that makes a circle on the pad a circle on the screen.
+        const Area fitted = fitTarget({0.25, 0.25, 0.5, 0.5}, {0, 0, 1, 1}, 1.5, 2.0, 0);
+        QVERIFY(qAbs(fitted.w - 0.5) < 1e-9);
+        QVERIFY(qAbs(fitted.h - 0.5 * 2.0 / 1.5) < 1e-9);
+        QVERIFY(qAbs((fitted.x + fitted.w / 2) - 0.5) < 1e-9); // same centre
+        QVERIFY(qAbs((fitted.y + fitted.h / 2) - 0.5) < 1e-9);
+        // Too tall to fit: the height caps at the screen and the width follows.
+        const Area capped = fitTarget({0, 0, 1, 1}, {0, 0, 1, 1}, 1.5, 3.0, 0);
+        QCOMPARE(capped.h, 1.0);
+        QVERIFY(qAbs(capped.w - 1.5 / 3.0) < 1e-9);
+    }
+
+    void realSizeKeepsTheChosenCentre() {
+        Config config;
+        config.realSize = true;
+        config.tabletWidthMm = 100;
+        config.tabletAspect = 1.0;
+        config.target = {0.7, 0.7, 0.2, 0.2}; // centred at (0.8, 0.8)
+        const auto layout = Layout::fromHyprctl(
+            R"([{"name":"S","x":0,"y":0,"width":1000,"height":1000,"scale":1,"transform":0,
+                 "physicalWidth":200,"physicalHeight":200}])");
+        const Placement where = placement(config, layout);
+        QVERIFY(where.real);
+        QVERIFY(qAbs(where.target.w - 0.5) < 1e-9 && qAbs(where.target.h - 0.5) < 1e-9);
+        QVERIFY(qAbs(where.target.x - 0.5) < 1e-9); // clamped to stay on the screen
+        QCOMPARE(where.area.w, 1.0);
     }
 
     void themeFallsBack() {

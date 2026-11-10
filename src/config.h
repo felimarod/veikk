@@ -20,7 +20,8 @@ struct Config {
 
     QString monitor;           // empty: the whole layout
     int rotation = 0;          // 0, 90, 180 or 270
-    TabletMath::Area area;
+    TabletMath::Area area;     // the part of the pad in use
+    TabletMath::Area target;   // where it lands, as shares of the monitor
     bool keepProportions = true;
     double tabletAspect = 1.5; // the VK640 pad is 6 x 4 inches
     bool realSize = false;     // pad at its physical size, centred on the monitor

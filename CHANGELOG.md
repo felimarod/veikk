@@ -27,6 +27,8 @@
   and refreshes udev; `veikk.service` is hardened.
 
 ### Added
+- The Area page shows the screen as the background, with a movable, resizable
+  rectangle for where the tablet acts; the pad's part is a smaller picture.
 - Real size (1:1): the pad at its physical size, centred on the monitor.
 - Keyboard control and accessible names for the area and the pressure curve.
 - Tests for the lock, Hyprland events, layout changes, config repair and the
