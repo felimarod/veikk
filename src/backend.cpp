@@ -12,6 +12,7 @@
 #include <QStandardPaths>
 #include <algorithm>
 #include <cerrno>
+#include <cstring>
 
 #include "evdev.h"
 #include "keynames.h"
@@ -52,11 +53,9 @@ Backend::Backend(const QString &configPath, const QString &stateDirectory, QObje
         }
     });
     connect(&m_serviceProcess, &QProcess::finished, this, [this](int code) {
-        if (code != 0) {
-            setProblem(tr("systemctl failed: %1").arg(QString::fromUtf8(m_serviceProcess.readAllStandardError()).trimmed()));
-        } else {
-            setProblem({});
-        }
+        m_serviceProblem = code == 0 ? QString()
+            : tr("systemctl failed: %1").arg(QString::fromUtf8(m_serviceProcess.readAllStandardError()).trimmed());
+        updateProblem();
         refreshDevices();
     });
 
@@ -275,7 +274,9 @@ void Backend::refreshLayout() {
 
 // ---- devices ---------------------------------------------------------------
 
-void Backend::setProblem(const QString &text) {
+void Backend::updateProblem() {
+    const QString text = !m_serviceProblem.isEmpty() ? m_serviceProblem
+                       : !m_daemonProblem.isEmpty() ? m_daemonProblem : m_openProblem;
     if (text == m_problem)
         return;
     m_problem = text;
@@ -308,8 +309,8 @@ void Backend::readState() {
         m_daemonRunning = running;
         emit deviceChanged();
     }
-    if (running && problem != m_problem)
-        setProblem(problem);
+    m_daemonProblem = running ? problem : QString();
+    updateProblem();
 }
 
 void Backend::closeSources() {
@@ -353,7 +354,10 @@ void Backend::refreshDevices() {
         m_pressure = 0;
         if (!penPath.isEmpty()) {
             m_penFd = Evdev::open(penPath);
-            if (m_penFd >= 0) {
+            if (m_penFd < 0) {
+                m_openProblem = tr("Cannot open %1: %2").arg(penPath, QString::fromLocal8Bit(strerror(errno)));
+            } else {
+                m_openProblem.clear();
                 m_xMax = std::max(1, Evdev::absRange(m_penFd, ABS_X).max);
                 m_yMax = std::max(1, Evdev::absRange(m_penFd, ABS_Y).max);
                 m_pressureMax = std::max(1, Evdev::absRange(m_penFd, ABS_PRESSURE).max);
@@ -379,6 +383,9 @@ void Backend::refreshDevices() {
             }
         }
     }
+    if (penPath.isEmpty())
+        m_openProblem.clear();
+    updateProblem();
     if (name != m_deviceName) {
         m_deviceName = name;
         changed = true;

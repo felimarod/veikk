@@ -131,7 +131,7 @@ private:
     void readPen();
     void readKeypad();
     void closeSources();
-    void setProblem(const QString &text);
+    void updateProblem();
 
     QString m_configPath, m_stateDirectory, m_hyprctl;
     Config m_config;
@@ -147,6 +147,9 @@ private:
     int m_penFd = -1, m_keypadFd = -1;
     std::unique_ptr<QSocketNotifier> m_penNotifier, m_keypadNotifier;
     QString m_penPath, m_keypadPath, m_deviceName, m_problem;
+    // Three sources, shown in this order: what systemctl said, what the
+    // daemon reported, and why the window itself could not open the pen.
+    QString m_serviceProblem, m_daemonProblem, m_openProblem;
     bool m_penProcessed = false;
     bool m_daemonRunning = false;
     int m_xMax = 1, m_yMax = 1, m_pressureMax = 1;
