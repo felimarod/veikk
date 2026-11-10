@@ -211,8 +211,13 @@ void Engine::readKeypad() {
             m_keys.feed(buffer[i], out);
     }
     send(m_keypad, out);
-    if (m_keys.sequence() != before)
-        writeState(); // the window shows the newest chord while learning a button
+    // The window shows the newest chord while learning a button, and the
+    // buttons held on the test page.
+    const QList<int> held = m_keys.pressed();
+    if (m_keys.sequence() != before || held != m_lastHeld) {
+        m_lastHeld = held;
+        writeState();
+    }
 }
 
 void Engine::send(int fd, const std::vector<input_event> &events) {
@@ -309,6 +314,9 @@ Engine::Problem Engine::problem() const {
 }
 
 void Engine::writeState() {
+    QJsonArray pressed;
+    for (int code : m_keys.pressed())
+        pressed.append(code);
     QSaveFile file(m_stateDirectory + "/state.json");
     if (!file.open(QIODevice::WriteOnly))
         return;
@@ -321,6 +329,7 @@ void Engine::writeState() {
         {"problemArgs", QJsonArray::fromStringList(problem().args)},
         {"chord", KeyNames::chord(m_keys.lastChord())},
         {"sequence", m_keys.sequence()},
+        {"pressed", pressed},
     }).toJson(QJsonDocument::Compact));
     file.commit();
 }

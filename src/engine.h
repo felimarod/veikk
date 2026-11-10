@@ -66,6 +66,7 @@ private:
     PenFilter m_pen;
     KeyFilter m_keys;
 
+    QList<int> m_lastHeld; // pad buttons as of the last state file
     Source m_penSource, m_keypadSource;
     int m_tablet = -1, m_keypad = -1; // uinput file descriptors
     Problem m_penProblem, m_keypadProblem;

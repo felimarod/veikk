@@ -303,6 +303,10 @@ void Backend::readState() {
         } else {
             problem = state.value("problem").toString();
         }
+        QList<int> held;
+        for (const auto &code : state.value("pressed").toArray())
+            held.append(code.toInt());
+        setPadKeys(held); // the daemon holds the pad, so it reports the buttons
         const int sequence = state.value("sequence").toInt();
         if (sequence != m_stateSequence) {
             m_stateSequence = sequence;
@@ -317,6 +321,8 @@ void Backend::readState() {
         m_daemonRunning = running;
         emit deviceChanged();
     }
+    if (!running && m_keypadFd < 0)
+        setPadKeys({}); // nobody is reporting the pad
     m_daemonProblem = problem;
     updateProblem();
 }
@@ -360,7 +366,7 @@ void Backend::refreshDevices() {
         m_penFd = -1;
         m_penPath = penPath;
         m_penProcessed = processed;
-        m_inRange = m_down = m_barrelPressed = false;
+        m_inRange = m_down = m_barrel1 = m_barrel2 = m_toolPen = m_toolRubber = false;
         m_pressure = 0;
         if (!penPath.isEmpty()) {
             m_penFd = Evdev::open(penPath);
@@ -396,6 +402,8 @@ void Backend::refreshDevices() {
         m_keypadFd = -1;
         m_keypadPath = keypadPath;
         m_keysDown.clear();
+        if (!m_daemonRunning)
+            setPadKeys({});
         if (!keypadPath.isEmpty()) {
             m_keypadFd = Evdev::open(keypadPath);
             if (m_keypadFd >= 0) {
@@ -440,12 +448,16 @@ void Backend::readPen() {
                 case ABS_TILT_Y: m_rawTiltY = e.value; break;
                 }
             } else if (e.type == EV_KEY) {
-                if (e.code == BTN_TOOL_PEN || e.code == BTN_TOOL_RUBBER)
-                    m_inRange = e.value != 0;
-                else if (e.code == BTN_TOUCH)
+                if (e.code == BTN_TOOL_PEN || e.code == BTN_TOOL_RUBBER) {
+                    (e.code == BTN_TOOL_PEN ? m_toolPen : m_toolRubber) = e.value != 0;
+                    m_inRange = m_toolPen || m_toolRubber;
+                } else if (e.code == BTN_TOUCH) {
                     m_down = e.value != 0;
-                else if (e.code == BTN_STYLUS || e.code == BTN_STYLUS2)
-                    m_barrelPressed = e.value != 0;
+                } else if (e.code == BTN_STYLUS) {
+                    m_barrel1 = e.value != 0;
+                } else if (e.code == BTN_STYLUS2) {
+                    m_barrel2 = e.value != 0;
+                }
             } else if (e.type == EV_SYN && e.code == SYN_REPORT) {
                 double x = double(m_rawX) / m_xMax, y = double(m_rawY) / m_yMax;
                 if (m_penProcessed) {
@@ -468,6 +480,16 @@ void Backend::readPen() {
     }
 }
 
+void Backend::setPadKeys(const QList<int> &codes) {
+    QStringList names;
+    if (!codes.isEmpty())
+        names = KeyNames::chord(codes).split('+');
+    if (names == m_padKeys)
+        return;
+    m_padKeys = names;
+    emit keysChanged();
+}
+
 void Backend::readKeypad() {
     input_event buffer[32];
     for (;;) {
@@ -486,7 +508,13 @@ void Backend::readKeypad() {
                     m_keysDown.insert(e.code);
                 else if (e.value == 0)
                     m_keysDown.erase(e.code);
-            } else if (e.type == EV_SYN && e.code == SYN_REPORT && !m_keysDown.empty()) {
+            } else if (e.type == EV_SYN && e.code == SYN_DROPPED) {
+                m_keysDown.clear();
+                setPadKeys({});
+            } else if (e.type == EV_SYN && e.code == SYN_REPORT) {
+                setPadKeys(QList<int>(m_keysDown.begin(), m_keysDown.end()));
+                if (m_keysDown.empty())
+                    continue;
                 const QString chord = KeyNames::chord(QList<int>(m_keysDown.begin(), m_keysDown.end()));
                 if (chord != m_lastChord) {
                     m_lastChord = chord;

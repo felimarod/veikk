@@ -26,7 +26,6 @@
   "Out of range": "Fuera de alcance",
   "Drawing": "Dibujando",
   "Hovering": "Flotando",
-  "Barrel button held": "Botón lateral presionado",
   "Clear  (Space)": "Borrar  (Espacio)",
   "Monitor": "Monitor",
   "All monitors": "Todos los monitores",
@@ -72,5 +71,10 @@
   "Where the tablet acts": "Dónde actúa la tableta",
   "Fill the screen": "Llenar la pantalla",
   "A centimetre on the pad is a centimetre on the screen. Drag the rectangle to place it.": "Un centímetro en la tableta es un centímetro en la pantalla. Arrastra el rectángulo para ubicarlo.",
-  "The pad covers %1 × %2 mm of a %3 × %4 mm screen.": "La tableta cubre %1 × %2 mm de una pantalla de %3 × %4 mm."
+  "The pad covers %1 × %2 mm of a %3 × %4 mm screen.": "La tableta cubre %1 × %2 mm de una pantalla de %3 × %4 mm.",
+  "Pen buttons": "Botones del lápiz",
+  "Pad buttons": "Botones de la tableta",
+  "Tip": "Punta",
+  "Eraser": "Borrador",
+  "None pressed": "Ninguno pulsado"
 }

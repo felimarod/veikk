@@ -27,6 +27,9 @@
   and refreshes udev; `veikk.service` is hardened.
 
 ### Added
+- The Test page shows the pen's buttons (tip, barrel, barrel 2, eraser) and the
+  pad buttons held, as they are pressed. The service reports the pad buttons in
+  `state.json` (`pressed`) because it holds the pad.
 - The Area page shows the screen as the background, with a movable, resizable
   rectangle for where the tablet acts; the pad's part is a smaller picture.
 - Real size (1:1): the pad at its physical size, centred on the monitor.

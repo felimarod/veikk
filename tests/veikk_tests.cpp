@@ -2,6 +2,7 @@
 #include <unistd.h>
 
 #include <QDir>
+#include <QSaveFile>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QFile>
@@ -635,6 +636,22 @@ private slots:
         QVERIFY(qAbs(where.target.w - 0.5) < 1e-9 && qAbs(where.target.h - 0.5) < 1e-9);
         QVERIFY(qAbs(where.target.x - 0.5) < 1e-9); // clamped to stay on the screen
         QCOMPARE(where.area.w, 1.0);
+    }
+
+    void theWindowShowsTheButtonsTheDaemonReports() {
+        QTemporaryDir dir;
+        const int held = State::acquireLock(dir.path()); // stands in for a running daemon
+        QVERIFY(held >= 0);
+        write(dir.filePath("state.json"), R"({"pid":1,"pressed":[44,29],"sequence":0,"chord":"none"})");
+        Backend backend(dir.filePath("config.json"), dir.path(), nullptr, "/nonexistent");
+        QCOMPARE(backend.padKeys(), QStringList({"ctrl", "z"})); // modifiers first
+        // The daemon replaces the file with a rename, as QSaveFile does.
+        QSaveFile next(dir.filePath("state.json"));
+        QVERIFY(next.open(QIODevice::WriteOnly));
+        next.write(R"({"pid":1,"pressed":[],"sequence":1,"chord":"z"})");
+        QVERIFY(next.commit());
+        QTRY_VERIFY(backend.padKeys().isEmpty());
+        ::close(held);
     }
 
     void themeFallsBack() {

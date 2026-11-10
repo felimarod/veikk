@@ -44,6 +44,8 @@ public:
     // them so a caller can tell a repeat of the same chord from no news.
     QList<int> lastChord() const { return m_lastChord; }
     int sequence() const { return m_sequence; }
+    // The buttons held right now, before any remapping.
+    QList<int> pressed() const { return QList<int>(m_pressed.begin(), m_pressed.end()); }
 
     // Forget held keys, e.g. after the pad was unplugged. The newest chord and
     // its counter stay, so the window does not see a reset as news.

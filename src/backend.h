@@ -65,6 +65,11 @@ class Backend : public QObject {
     Q_PROPERTY(bool penInRange READ penInRange NOTIFY penChanged)
     Q_PROPERTY(bool penDown READ penDown NOTIFY penChanged)
     Q_PROPERTY(bool barrelPressed READ barrelPressed NOTIFY penChanged)
+    Q_PROPERTY(bool barrel1 READ barrel1 NOTIFY penChanged)
+    Q_PROPERTY(bool barrel2 READ barrel2 NOTIFY penChanged)
+    Q_PROPERTY(bool eraser READ eraser NOTIFY penChanged)
+    // Names of the pad buttons held right now, modifiers first.
+    Q_PROPERTY(QStringList padKeys READ padKeys NOTIFY keysChanged)
     Q_PROPERTY(QString lastChord READ lastChord NOTIFY chordChanged)
 
 public:
@@ -114,7 +119,11 @@ public:
     double tiltY() const { return m_tiltY; }
     bool penInRange() const { return m_inRange; }
     bool penDown() const { return m_down; }
-    bool barrelPressed() const { return m_barrelPressed; }
+    bool barrelPressed() const { return m_barrel1 || m_barrel2; }
+    bool barrel1() const { return m_barrel1; }
+    bool barrel2() const { return m_barrel2; }
+    bool eraser() const { return m_toolRubber; }
+    QStringList padKeys() const { return m_padKeys; }
     QString lastChord() const { return m_lastChord; }
 
     Q_INVOKABLE void setMonitor(const QString &name);
@@ -145,6 +154,7 @@ signals:
     void layoutChanged();
     void penChanged();
     void chordChanged();
+    void keysChanged();
     // One pen sample, for the test canvas to draw.
     void stroke(double x, double y, double pressure, bool down);
 
@@ -161,6 +171,7 @@ private:
     void watchStateFile();
     void readPen();
     void readKeypad();
+    void setPadKeys(const QList<int> &codes);
     void closeSources();
     void updateProblem();
 
@@ -188,7 +199,9 @@ private:
 
     int m_rawX = 0, m_rawY = 0, m_rawPressure = 0, m_rawTiltX = 0, m_rawTiltY = 0;
     double m_penX = 0, m_penY = 0, m_pressure = 0, m_tiltX = 0, m_tiltY = 0;
-    bool m_inRange = false, m_down = false, m_barrelPressed = false;
+    bool m_inRange = false, m_down = false, m_barrel1 = false, m_barrel2 = false;
+    bool m_toolPen = false, m_toolRubber = false;
+    QStringList m_padKeys;
     std::set<int> m_keysDown;
     QString m_lastChord;
     int m_stateSequence = -1;
