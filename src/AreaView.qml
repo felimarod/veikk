@@ -19,9 +19,9 @@ Item {
                 width: Math.min(parent.width, parent.height * backend.tabletAspect)
                 height: width / backend.tabletAspect
                 anchors.centerIn: parent
-                color: Palette.surface
+                color: Colors.surface
                 radius: theme.radius
-                border.color: Palette.border
+                border.color: Colors.border
 
                 Rectangle {
                     id: area
@@ -125,7 +125,7 @@ Item {
             Layout.alignment: Qt.AlignTop
             spacing: 12
 
-            Label { text: qsTr("Monitor"); color: Palette.textMuted }
+            Label { text: qsTr("Monitor"); color: Colors.textMuted }
             ComboBox {
                 Layout.fillWidth: true
                 model: [qsTr("All monitors")].concat(backend.monitors)
@@ -133,7 +133,7 @@ Item {
                 onActivated: (i) => backend.setMonitor(i === 0 ? "" : backend.monitors[i - 1])
             }
 
-            Label { text: qsTr("Rotation"); color: Palette.textMuted }
+            Label { text: qsTr("Rotation"); color: Colors.textMuted }
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 6
@@ -159,7 +159,7 @@ Item {
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: Palette.textDim
+                color: Colors.textDim
                 text: !backend.realSize
                     ? qsTr("Draws a centimetre on the pad as a centimetre on the screen, centred on the monitor.")
                     : backend.realActive
@@ -170,7 +170,7 @@ Item {
                               .arg(Qt.locale().toString(backend.monitorHeightMm, 'f', 0))
                         : qsTr("The screen reports no physical size, so the area stays as set below.")
             }
-            Label { text: qsTr("Pad width (mm)"); color: Palette.textMuted; visible: backend.realSize }
+            Label { text: qsTr("Pad width (mm)"); color: Colors.textMuted; visible: backend.realSize }
             SpinBox {
                 Layout.fillWidth: true
                 visible: backend.realSize
@@ -193,11 +193,11 @@ Item {
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: Palette.textDim
+                color: Colors.textDim
                 text: qsTr("A circle drawn on the pad stays a circle on the monitor.")
             }
 
-            Label { text: qsTr("Pad width ÷ height"); color: Palette.textMuted }
+            Label { text: qsTr("Pad width ÷ height"); color: Colors.textMuted }
             SpinBox {
                 Layout.fillWidth: true
                 from: 50

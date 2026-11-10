@@ -1,7 +1,7 @@
 <RCC>
     <qresource prefix="/">
         <file alias="qmldir">qmldir</file>
-        <file alias="Palette.qml">Palette.qml</file>
+        <file alias="Colors.qml">Colors.qml</file>
         <file alias="Main.qml">Main.qml</file>
         <file alias="PenTestView.qml">PenTestView.qml</file>
         <file alias="AreaView.qml">AreaView.qml</file>

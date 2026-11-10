@@ -18,7 +18,7 @@ Item {
                 width: Math.min(parent.width, parent.height)
                 height: width
                 anchors.centerIn: parent
-                color: Palette.surface
+                color: Colors.surface
                 radius: theme.radius
 
                 Canvas {
@@ -31,14 +31,14 @@ Item {
                     onPaint: {
                         var ctx = getContext("2d")
                         ctx.clearRect(0, 0, width, height)
-                        ctx.strokeStyle = Palette.border
+                        ctx.strokeStyle = Colors.border
                         ctx.lineWidth = 1
                         for (var g = 0; g <= 4; ++g) {
                             ctx.beginPath(); ctx.moveTo(toX(g / 4), 0); ctx.lineTo(toX(g / 4), height); ctx.stroke()
                             ctx.beginPath(); ctx.moveTo(0, toY(g / 4)); ctx.lineTo(width, toY(g / 4)); ctx.stroke()
                         }
                         // Handle stems.
-                        ctx.strokeStyle = Palette.disabled
+                        ctx.strokeStyle = Colors.disabled
                         ctx.beginPath(); ctx.moveTo(toX(0), toY(0)); ctx.lineTo(toX(backend.curveX1), toY(backend.curveY1)); ctx.stroke()
                         ctx.beginPath(); ctx.moveTo(toX(1), toY(1)); ctx.lineTo(toX(backend.curveX2), toY(backend.curveY2)); ctx.stroke()
                         // The curve itself, sampled through the same function the daemon uses.
@@ -74,7 +74,7 @@ Item {
                             y: curveCanvas.toY(cy) - 9
                             color: theme.accent
                             border.width: 2
-                            border.color: Palette.background
+                            border.color: Colors.background
 
                             // Keyboard: arrows nudge the handle.
                             activeFocusOnTab: true
@@ -134,7 +134,7 @@ Item {
                     anchors.bottom: parent.bottom
                     anchors.margins: 6
                     text: qsTr("Pressure in")
-                    color: Palette.textDim
+                    color: Colors.textDim
                     font.pixelSize: 11
                 }
                 Label {
@@ -142,7 +142,7 @@ Item {
                     anchors.top: parent.top
                     anchors.margins: 6
                     text: qsTr("Pressure out")
-                    color: Palette.textDim
+                    color: Colors.textDim
                     font.pixelSize: 11
                 }
             }
@@ -158,12 +158,12 @@ Item {
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: Palette.textMuted
+                color: Colors.textMuted
                 text: qsTr("Drag the two handles. Pull the curve down for a softer pen that needs a firmer press; up for a lighter touch.")
             }
             Button { text: qsTr("Straight line"); flat: true; onClicked: backend.resetCurve() }
 
-            Label { text: qsTr("Barrel button"); color: Palette.textMuted }
+            Label { text: qsTr("Barrel button"); color: Colors.textMuted }
             ComboBox {
                 Layout.fillWidth: true
                 textRole: "label"
