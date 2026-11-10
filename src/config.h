@@ -17,6 +17,7 @@ struct ButtonRule {
 // window writes it and the daemon watches it, so a change is live at once.
 struct Config {
     static constexpr double kMinArea = 0.05; // smallest share of the pad in use
+    static constexpr int kPadSlots = 6;      // the VK640 has six buttons, in a column
 
     QString monitor;           // empty: the whole layout
     int rotation = 0;          // 0, 90, 180 or 270
@@ -29,6 +30,9 @@ struct Config {
     TabletMath::Curve curve;
     QString barrel = "stylus"; // "stylus", "stylus2" or "none"
     QList<ButtonRule> buttons;
+    // What each of the pad's physical buttons types, top to bottom, learned on
+    // the Test page so it can draw which one is held. Empty: not learned yet.
+    QList<QList<int>> padSlots;
 
     bool operator==(const Config &o) const;
     QJsonObject toJson() const;

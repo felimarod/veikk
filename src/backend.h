@@ -70,6 +70,13 @@ class Backend : public QObject {
     Q_PROPERTY(bool eraser READ eraser NOTIFY penChanged)
     // Names of the pad buttons held right now, modifiers first.
     Q_PROPERTY(QStringList padKeys READ padKeys NOTIFY keysChanged)
+    // The chord held on the pad ("" when none), what it makes the desktop type,
+    // and which of the six learned buttons it is (-1 when unknown).
+    Q_PROPERTY(QString padChord READ padChord NOTIFY keysChanged)
+    Q_PROPERTY(QString padSends READ padSends NOTIFY keysChanged)
+    Q_PROPERTY(int padSlot READ padSlot NOTIFY keysChanged)
+    // The chord of each button, top to bottom; "" where not learned.
+    Q_PROPERTY(QStringList padSlots READ padSlots NOTIFY configChanged)
     Q_PROPERTY(QString lastChord READ lastChord NOTIFY chordChanged)
 
 public:
@@ -124,6 +131,10 @@ public:
     bool barrel2() const { return m_barrel2; }
     bool eraser() const { return m_toolRubber; }
     QStringList padKeys() const { return m_padKeys; }
+    QString padChord() const;
+    QString padSends() const;
+    int padSlot() const;
+    QStringList padSlots() const;
     QString lastChord() const { return m_lastChord; }
 
     Q_INVOKABLE void setMonitor(const QString &name);
@@ -143,6 +154,9 @@ public:
     // Empty on success, otherwise what is wrong with the chords typed.
     Q_INVOKABLE QString addButton(const QString &from, const QString &to);
     Q_INVOKABLE void removeButton(int index);
+    // Teaches which chord is the pad's button `index`; empty on success, else why not.
+    Q_INVOKABLE QString setPadSlot(int index, const QString &chord);
+    Q_INVOKABLE void clearPadSlots();
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
     // Starts or stops the daemon as a user service, enabled at login.
@@ -202,6 +216,7 @@ private:
     bool m_inRange = false, m_down = false, m_barrel1 = false, m_barrel2 = false;
     bool m_toolPen = false, m_toolRubber = false;
     QStringList m_padKeys;
+    QList<int> m_padCodes;
     std::set<int> m_keysDown;
     QString m_lastChord;
     int m_stateSequence = -1;

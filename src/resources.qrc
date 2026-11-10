@@ -4,6 +4,8 @@
         <file alias="Colors.qml">Colors.qml</file>
         <file alias="Main.qml">Main.qml</file>
         <file alias="PenTestView.qml">PenTestView.qml</file>
+        <file alias="PenDiagram.qml">PenDiagram.qml</file>
+        <file alias="TabletDiagram.qml">TabletDiagram.qml</file>
         <file alias="AreaView.qml">AreaView.qml</file>
         <file alias="ButtonsView.qml">ButtonsView.qml</file>
         <file alias="PenSettingsView.qml">PenSettingsView.qml</file>

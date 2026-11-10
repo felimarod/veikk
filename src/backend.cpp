@@ -30,6 +30,8 @@ Backend::Backend(const QString &configPath, const QString &stateDirectory, QObje
     m_saveTimer.setInterval(150);
     connect(&m_saveTimer, &QTimer::timeout, this, &Backend::save);
 
+    // What a held button sends depends on the rules.
+    connect(this, &Backend::configChanged, this, &Backend::keysChanged);
     m_layoutWatcher = std::make_unique<LayoutWatcher>(hyprctl);
     connect(m_layoutWatcher.get(), &LayoutWatcher::changed, this, &Backend::layoutChanged);
     // The computed area of real size follows the monitors.
@@ -480,7 +482,70 @@ void Backend::readPen() {
     }
 }
 
+namespace {
+bool sameChord(QList<int> a, QList<int> b) {
+    std::sort(a.begin(), a.end());
+    std::sort(b.begin(), b.end());
+    return a == b;
+}
+} // namespace
+
+QString Backend::padChord() const {
+    return m_padCodes.isEmpty() ? QString() : KeyNames::chord(m_padCodes);
+}
+
+QString Backend::padSends() const {
+    if (m_padCodes.isEmpty())
+        return {};
+    for (const auto &rule : m_config.buttons)
+        if (sameChord(rule.from, m_padCodes))
+            return KeyNames::chord(rule.to); // "none" when the button is swallowed
+    return KeyNames::chord(m_padCodes);
+}
+
+int Backend::padSlot() const {
+    if (m_padCodes.isEmpty())
+        return -1;
+    for (int i = 0; i < m_config.padSlots.size(); ++i)
+        if (!m_config.padSlots[i].isEmpty() && sameChord(m_config.padSlots[i], m_padCodes))
+            return i;
+    return -1;
+}
+
+QStringList Backend::padSlots() const {
+    QStringList chords;
+    for (int i = 0; i < Config::kPadSlots; ++i)
+        chords << (i < m_config.padSlots.size() && !m_config.padSlots[i].isEmpty()
+                       ? KeyNames::chord(m_config.padSlots[i]) : QString());
+    return chords;
+}
+
+QString Backend::setPadSlot(int index, const QString &chord) {
+    if (index < 0 || index >= Config::kPadSlots)
+        return tr("There is no such button.");
+    bool ok = false;
+    const auto codes = KeyNames::parseChord(chord, &ok);
+    if (!ok || codes.isEmpty())
+        return tr("Press the pad button first.");
+    Config next = m_config;
+    while (next.padSlots.size() < Config::kPadSlots)
+        next.padSlots.append(QList<int>());
+    for (int i = 0; i < Config::kPadSlots; ++i)
+        if (i != index && sameChord(next.padSlots[i], codes))
+            return tr("That button is already button %1.").arg(i + 1);
+    next.padSlots[index] = codes;
+    commit(next, "pad-slot");
+    return {};
+}
+
+void Backend::clearPadSlots() {
+    Config next = m_config;
+    next.padSlots.clear();
+    commit(next, "pad-slots");
+}
+
 void Backend::setPadKeys(const QList<int> &codes) {
+    m_padCodes = codes;
     QStringList names;
     if (!codes.isEmpty())
         names = KeyNames::chord(codes).split('+');

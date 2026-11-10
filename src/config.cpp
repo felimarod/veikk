@@ -14,10 +14,13 @@ bool Config::operator==(const Config &o) const {
     return monitor == o.monitor && rotation == o.rotation && area == o.area && target == o.target
         && keepProportions == o.keepProportions && tabletAspect == o.tabletAspect && realSize == o.realSize
         && tabletWidthMm == o.tabletWidthMm && curve == o.curve
-        && barrel == o.barrel && buttons == o.buttons;
+        && barrel == o.barrel && buttons == o.buttons && padSlots == o.padSlots;
 }
 
 QJsonObject Config::toJson() const {
+    QJsonArray padChords;
+    for (int i = 0; i < kPadSlots; ++i)
+        padChords.append(KeyNames::chord(i < padSlots.size() ? padSlots[i] : QList<int>()));
     QJsonArray rules;
     for (const auto &rule : buttons)
         rules.append(QJsonObject{{"from", KeyNames::chord(rule.from)}, {"to", KeyNames::chord(rule.to)}});
@@ -33,6 +36,7 @@ QJsonObject Config::toJson() const {
         {"curve", QJsonObject{{"x1", curve.x1}, {"y1", curve.y1}, {"x2", curve.x2}, {"y2", curve.y2}}},
         {"barrel", barrel},
         {"buttons", rules},
+        {"padSlots", padChords},
     };
 }
 
@@ -79,6 +83,15 @@ Config Config::fromJson(const QJsonObject &o) {
         if (fromOk && toOk && !from.isEmpty())
             c.buttons.append({from, to});
     }
+    const auto stored = o.value("padSlots").toArray();
+    for (int i = 0; i < kPadSlots; ++i) {
+        bool ok = false;
+        const auto chord = i < stored.size() ? KeyNames::parseChord(stored[i].toString(), &ok) : QList<int>();
+        c.padSlots.append(ok ? chord : QList<int>());
+    }
+    // All slots empty is the same as not learned.
+    if (std::all_of(c.padSlots.begin(), c.padSlots.end(), [](const QList<int> &x) { return x.isEmpty(); }))
+        c.padSlots.clear();
     return c;
 }
 

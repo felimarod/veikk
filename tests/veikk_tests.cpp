@@ -654,6 +654,49 @@ private slots:
         ::close(held);
     }
 
+    void learnedPadButtonsRoundTripAndAreMatched() {
+        Config config;
+        config.padSlots = {{KEY_LEFTCTRL, KEY_Z}, {KEY_F5}, {}, {}, {}, {}};
+        const Config again = Config::fromJson(config.toJson());
+        QVERIFY(again == config);
+        QVERIFY(Config::fromJson(QJsonDocument::fromJson(R"({"padSlots":["none","none"]})").object()).padSlots.isEmpty());
+
+        QTemporaryDir dir;
+        write(dir.filePath("config.json"), QJsonDocument(config.toJson()).toJson());
+        Backend backend(dir.filePath("config.json"), dir.path(), nullptr, "/nonexistent");
+        QCOMPARE(backend.padSlots().size(), 6);
+        QCOMPARE(backend.padSlots()[0], QString("ctrl+z"));
+        QVERIFY(backend.padSlots()[2].isEmpty());
+        QVERIFY(backend.setPadSlot(2, "ctrl+z").contains("button 1")); // already taken
+        QVERIFY(backend.setPadSlot(2, "none").size() > 0);            // nothing pressed
+        QVERIFY(backend.setPadSlot(2, "f6").isEmpty());
+        QCOMPARE(backend.padSlots()[2], QString("f6"));
+        backend.clearPadSlots();
+        QCOMPARE(backend.padSlots(), QStringList({"", "", "", "", "", ""}));
+    }
+
+    void theHeldButtonIsNamedAndItsRuleShown() {
+        QTemporaryDir dir;
+        Config config;
+        config.padSlots = {{KEY_F5}, {KEY_LEFTCTRL, KEY_Z}, {}, {}, {}, {}};
+        config.buttons = {{{KEY_LEFTCTRL, KEY_Z}, {KEY_LEFTCTRL, KEY_LEFTSHIFT, KEY_Z}}, {{KEY_F5}, {}}};
+        write(dir.filePath("config.json"), QJsonDocument(config.toJson()).toJson());
+        const int held = State::acquireLock(dir.path());
+        QVERIFY(held >= 0);
+        write(dir.filePath("state.json"), R"({"pid":1,"pressed":[44,29],"sequence":0,"chord":"none"})");
+        Backend backend(dir.filePath("config.json"), dir.path(), nullptr, "/nonexistent");
+        QCOMPARE(backend.padChord(), QString("ctrl+z"));
+        QCOMPARE(backend.padSlot(), 1);
+        QCOMPARE(backend.padSends(), QString("ctrl+shift+z")); // remapped
+        QSaveFile next(dir.filePath("state.json"));
+        QVERIFY(next.open(QIODevice::WriteOnly));
+        next.write(R"({"pid":1,"pressed":[63],"sequence":1,"chord":"f5"})");
+        QVERIFY(next.commit());
+        QTRY_COMPARE(backend.padSlot(), 0);
+        QCOMPARE(backend.padSends(), QString("none")); // swallowed
+        ::close(held);
+    }
+
     void themeFallsBack() {
         QTemporaryDir dir;
         Theme theme(dir.path());
