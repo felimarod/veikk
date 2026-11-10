@@ -68,5 +68,7 @@
   "Draws a centimetre on the pad as a centimetre on the screen, centred on the monitor.": "Un centímetro en la tableta es un centímetro en la pantalla, centrado en el monitor.",
   "The pad covers %1 × %2 mm of a %3 × %4 mm screen, centred.": "La tableta cubre %1 × %2 mm de una pantalla de %3 × %4 mm, centrada.",
   "The screen reports no physical size, so the area stays as set below.": "La pantalla no informa su tamaño físico, así que el área queda como la ajustes.",
-  "Pad width (mm)": "Ancho de la tableta (mm)"
+  "Pad width (mm)": "Ancho de la tableta (mm)",
+  "Tablet": "Tableta",
+  "Screen: %1": "Pantalla: %1"
 }

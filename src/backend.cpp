@@ -57,6 +57,7 @@ Backend::Backend(const QString &configPath, const QString &stateDirectory, QObje
     });
     m_deviceWatcher.addPath("/dev/input");
     connect(&m_pollTimer, &QTimer::timeout, this, [this] {
+        m_failedPenPath.clear(); // try an unreadable pen again now and then
         refreshDevices();
         watchStateFile();
     });
@@ -94,6 +95,16 @@ TabletMath::RealSize Backend::real() const {
         return {};
     return TabletMath::realSize(m_config.tabletWidthMm, m_config.tabletWidthMm / m_config.tabletAspect, layout(),
                                 m_config.monitor, m_config.rotation);
+}
+
+double Backend::coverW() const {
+    const auto r = real();
+    return r.valid ? r.region.w / layout().region(displayMonitor()).w : 1.0;
+}
+
+double Backend::coverH() const {
+    const auto r = real();
+    return r.valid ? r.region.h / layout().region(displayMonitor()).h : 1.0;
 }
 
 TabletMath::Area Backend::effectiveArea() const {
@@ -369,8 +380,17 @@ void Backend::refreshDevices() {
             m_penFd = Evdev::open(penPath);
             if (m_penFd < 0) {
                 m_openProblem = tr("Cannot open %1: %2").arg(penPath, QString::fromLocal8Bit(strerror(errno)));
-                m_failedPenPath = penPath; // do not retry every scan
+                // Not every scan, but soon: a virtual device's node appears a
+                // moment before udev grants access to it, so a first "permission
+                // denied" usually clears by itself.
+                m_failedPenPath = penPath;
+                if (m_openRetries++ < 10)
+                    QTimer::singleShot(300, this, [this] {
+                        m_failedPenPath.clear();
+                        refreshDevices();
+                    });
             } else {
+                m_openRetries = 0;
                 m_openProblem.clear();
                 m_xMax = std::max(1, Evdev::absRange(m_penFd, ABS_X).max);
                 m_yMax = std::max(1, Evdev::absRange(m_penFd, ABS_Y).max);
@@ -382,7 +402,7 @@ void Backend::refreshDevices() {
         changed = true;
         emit penChanged();
     }
-    if (keypadPath != m_keypadPath) {
+    if (keypadPath != m_keypadPath || (!keypadPath.isEmpty() && m_keypadFd < 0)) {
         if (m_keypadNotifier)
             m_keypadNotifier.release()->deleteLater();
         if (m_keypadFd >= 0)

@@ -9,10 +9,23 @@ Item {
         anchors.fill: parent
         spacing: 24
 
+        // The tablet on top, the screen under it, each named.
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 8
+
+            Label {
+                text: qsTr("Tablet")
+                font.bold: true
+                color: Colors.textMuted
+            }
+
         // The pad, with the active area drawn on it.
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.preferredHeight: 100
 
             Rectangle {
                 id: pad
@@ -112,6 +125,51 @@ Item {
                                                 p.x / pad.width - backend.areaX,
                                                 p.y / pad.height - backend.areaY)
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+            Label {
+                text: qsTr("Screen: %1").arg(
+                    backend.monitor !== "" ? backend.monitor
+                    : backend.realSize && backend.monitors.length > 0 ? backend.monitors[0]
+                    : qsTr("All monitors"))
+                font.bold: true
+                color: Colors.textMuted
+            }
+
+            // The screen, with where the pad lands on it.
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.preferredHeight: 100
+
+                Rectangle {
+                    id: screen
+                    readonly property real ratio: backend.monitorAspect > 0 ? backend.monitorAspect : 1.6
+                    width: Math.min(parent.width, parent.height * ratio)
+                    height: width / ratio
+                    anchors.centerIn: parent
+                    color: Colors.background
+                    radius: Math.min(4, theme.radius)
+                    border.color: Colors.textDim
+                    border.width: 2
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: parent.width * backend.coverW
+                        height: parent.height * backend.coverH
+                        radius: Math.min(4, theme.radius)
+                        color: Qt.rgba(Qt.color(theme.accent).r, Qt.color(theme.accent).g, Qt.color(theme.accent).b, 0.18)
+                        border.width: 2
+                        border.color: theme.accent
+
+                        Label {
+                            anchors.centerIn: parent
+                            text: qsTr("Tablet")
+                            color: theme.accent
                         }
                     }
                 }

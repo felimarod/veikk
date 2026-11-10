@@ -35,6 +35,9 @@ class Backend : public QObject {
     Q_PROPERTY(double tabletHeightMm READ tabletHeightMm NOTIFY configChanged)
     Q_PROPERTY(double monitorWidthMm READ monitorWidthMm NOTIFY configChanged)
     Q_PROPERTY(double monitorHeightMm READ monitorHeightMm NOTIFY configChanged)
+    // The share of the monitor the pad covers, per axis: 1 unless real size shrinks it.
+    Q_PROPERTY(double coverW READ coverW NOTIFY configChanged)
+    Q_PROPERTY(double coverH READ coverH NOTIFY configChanged)
     Q_PROPERTY(double areaX READ areaX NOTIFY configChanged)
     Q_PROPERTY(double areaY READ areaY NOTIFY configChanged)
     Q_PROPERTY(double areaW READ areaW NOTIFY configChanged)
@@ -75,6 +78,8 @@ public:
     QStringList monitors() const;
     double monitorAspect() const { return layout().aspect(displayMonitor()); }
     bool realSize() const { return m_config.realSize; }
+    double coverW() const;
+    double coverH() const;
     bool realActive() const { return real().valid; }
     double tabletWidthMm() const { return m_config.tabletWidthMm; }
     double tabletHeightMm() const { return m_config.tabletWidthMm / m_config.tabletAspect; }
@@ -167,6 +172,7 @@ private:
 
     int m_penFd = -1, m_keypadFd = -1;
     std::unique_ptr<QSocketNotifier> m_penNotifier, m_keypadNotifier;
+    int m_openRetries = 0;
     QString m_failedPenPath, m_penPath, m_keypadPath, m_deviceName, m_problem;
     // Three sources, shown in this order: what systemctl said, what the
     // daemon reported, and why the window itself could not open the pen.
