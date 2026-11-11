@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "id": "afm.veikk",
+  "name": "Veikk",
+  "version": "1.0.0",
+  "author": "afm",
+  "license": "MIT",
+  "description": "Estado del servicio Veikk y ajuste del área de trabajo de la tableta desde la barra.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Veikk",
+    "description": "Muestra si el servicio Veikk está activo y permite modificar el área de trabajo de la tableta.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 5,
+      "tabletWidthMm": 152.4,
+      "tabletHeightMm": 101.6
+    },
+    "schema": [
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "Intervalo de actualización (segundos)",
+        "min": 2,
+        "max": 60,
+        "step": 1,
+        "defaultValue": 5
+      },
+      {
+        "key": "tabletWidthMm",
+        "type": "number",
+        "label": "Ancho físico de la tableta (mm)",
+        "min": 20,
+        "max": 1000,
+        "step": 0.1,
+        "defaultValue": 152.4
+      },
+      {
+        "key": "tabletHeightMm",
+        "type": "number",
+        "label": "Alto físico de la tableta (mm)",
+        "min": 20,
+        "max": 1000,
+        "step": 0.1,
+        "defaultValue": 101.6
+      }
+    ]
+  }
+}

@@ -27,6 +27,7 @@
   and refreshes udev; `veikk.service` is hardened.
 
 ### Added
+- `plugins/afm.veikk`: the Omarchy bar widget, with install notes in the README.
 - The Test page draws the pen (tip, barrel buttons 1 and 2, eraser) and the
   tablet with its six buttons, and lights up what is held. Beside the held
   button it shows the keys the system recognises and, when a rule changes them,

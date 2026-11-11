@@ -75,6 +75,28 @@ width ÷ height. If the screen is smaller than the pad along an axis, only the
 middle part of the pad that fits is used. With "All monitors" it uses the first
 monitor. If a screen reports no physical size, the area stays as set by hand.
 
+## Omarchy bar widget
+
+`plugins/afm.veikk/` holds an optional [Omarchy shell](https://omarchy.org)
+bar widget (`bar-widget`, id `afm.veikk`). It shows whether the service is
+running, the tablet it found and any problem the service reports, and lets you
+adjust the working area from the bar. It reads `veikk status --json` and
+`~/.config/veikk/config.json`, and starts or stops the service with
+`systemctl --user`; its "open" button runs `veikk open`.
+
+Install it by copying the folder and enabling it in the shell config:
+
+```sh
+mkdir -p ~/.config/omarchy/plugins
+cp -r plugins/afm.veikk ~/.config/omarchy/plugins/
+```
+
+Then add `{ "id": "afm.veikk" }` to one of the bar's sections in
+`~/.config/omarchy/shell.json` (for example `centerBegin`; its default is the
+right side) and restart the shell. It needs `veikk` on the `PATH` and `jq`; the refresh interval and the pad's
+physical size (152.4 x 101.6 mm by default, the VK640) are options in its
+manifest. It is MIT licensed like the rest and not part of the Arch package.
+
 ## Security
 
 The service needs `/dev/uinput` to create its virtual devices, so the udev rule
