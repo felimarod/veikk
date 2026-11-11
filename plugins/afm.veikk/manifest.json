@@ -14,16 +14,24 @@
   },
   "barWidget": {
     "displayName": "Veikk",
-    "description": "Muestra si el servicio Veikk está activo y permite modificar el área de trabajo de la tableta.",
+    "description": "Indicador oculto que aparece cuando el servicio Veikk está activo (o al pasar el puntero por la barra) y permite modificar el área de trabajo de la tableta.",
     "category": "System",
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
       "refreshIntervalSec": 5,
       "tabletWidthMm": 152.4,
-      "tabletHeightMm": 101.6
+      "tabletHeightMm": 101.6,
+      "alwaysShow": false
     },
     "schema": [
+      {
+        "key": "alwaysShow",
+        "type": "boolean",
+        "label": "Mostrar siempre",
+        "description": "Mostrar el icono aunque el servicio esté detenido, sin esperar a pasar el puntero por la barra.",
+        "defaultValue": false
+      },
       {
         "key": "refreshIntervalSec",
         "type": "integer",

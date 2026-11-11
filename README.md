@@ -82,7 +82,10 @@ bar widget (`bar-widget`, id `afm.veikk`). It shows whether the service is
 running, the tablet it found and any problem the service reports, and lets you
 adjust the working area from the bar. It reads `veikk status --json` and
 `~/.config/veikk/config.json`, and starts or stops the service with
-`systemctl --user`; its "open" button runs `veikk open`.
+`systemctl --user`; its "open" button runs `veikk open`. Like the shell's own
+indicators (night light, stay awake), it stays hidden while the service is
+stopped and shows dimmed when you hover the bar; the `alwaysShow` option keeps
+it visible.
 
 Install it by copying the folder and enabling it in the shell config:
 

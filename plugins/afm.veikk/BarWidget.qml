@@ -11,7 +11,15 @@ Panel {
   moduleName: "afm.veikk"
   ipcTarget: "afm.veikk"
 
-  implicitWidth: button.implicitWidth
+  // Como los indicadores de Omarchy (luz nocturna, mantener activo...): se ve
+  // mientras el servicio está activo; si no, queda oculto y solo aparece, atenuado,
+  // al pasar el puntero por la barra, o mientras el panel está abierto.
+  readonly property bool alwaysShow: setting("alwaysShow", false) === true
+  readonly property bool barRevealed: !!bar && bar.centerSectionRevealHeld === true
+    && bar.centerHoverRevealSuppressed !== true
+  readonly property bool shown: running || alwaysShow || barRevealed || opened
+
+  implicitWidth: button.visible ? button.implicitWidth : 0
   implicitHeight: button.implicitHeight
 
   readonly property string configPath: Quickshell.env("HOME") + "/.config/veikk/config.json"
@@ -290,6 +298,10 @@ Panel {
     bar: root.bar
     text: "󰏪"
     active: root.running
+    hasVisualContent: root.shown
+    dimmed: !root.running
+    concealed: !root.shown
+    interactive: root.shown
     tooltipText: root.running ? "Veikk: activo" : "Veikk: inactivo"
     onPressed: function(b) {
       if (b === Qt.RightButton) root.setService(!root.running)
